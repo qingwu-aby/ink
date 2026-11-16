@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
-import 'package:mopu/data/db/app_database.dart';
+import 'package:kedao/data/db/app_database.dart';
 
 /// 回归测试：v1 → v2 的迁移。
 ///

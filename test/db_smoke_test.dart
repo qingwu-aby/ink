@@ -1,6 +1,6 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mopu/data/db/app_database.dart';
+import 'package:kedao/data/db/app_database.dart';
 
 void main() {
   test('内存库可用', () async {

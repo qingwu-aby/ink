@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// 墨谱色板（Mo = 墨）。取「宣纸 / 墨 / 朱砂 / 靛青 / 石绿 / 赤金」六色。
+/// 色板（前缀 Mo 取自「墨」）。取「宣纸 / 墨 / 朱砂 / 靛青 / 石绿 / 赤金」六色。
 /// 命名为 Mo 是为了避开 Flutter 自带的 Ink 组件。
 abstract final class Mo {
   // 浅色（宣纸）

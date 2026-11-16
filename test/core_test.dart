@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mopu/core/utils/text_utils.dart';
-import 'package:mopu/data/db/app_database.dart';
-import 'package:mopu/domain/graph/force_layout.dart';
-import 'package:mopu/domain/import/chapter_splitter.dart';
-import 'package:mopu/domain/text/entity_matcher.dart';
+import 'package:kedao/core/utils/text_utils.dart';
+import 'package:kedao/data/db/app_database.dart';
+import 'package:kedao/domain/graph/force_layout.dart';
+import 'package:kedao/domain/import/chapter_splitter.dart';
+import 'package:kedao/domain/text/entity_matcher.dart';
 
 Entity entity(int id, String name, {String? aliases}) => Entity(
       id: id,

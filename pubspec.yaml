@@ -1,7 +1,7 @@
-name: mopu
-description: "墨谱 · 小说写作知识图谱 — 正文与图谱双向绑定的长篇小说写作台"
+name: kedao
+description: "可道 · 小说写作知识图谱 — 正文与图谱双向绑定的长篇小说写作台"
 publish_to: 'none'
-version: 0.1.0+1
+version: 1.0.0+1
 
 environment:
   sdk: '>=3.6.0 <4.0.0'

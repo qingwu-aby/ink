@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mopu/data/db/app_database.dart';
-import 'package:mopu/domain/snapshot/snapshot_rules.dart';
+import 'package:kedao/data/db/app_database.dart';
+import 'package:kedao/domain/snapshot/snapshot_rules.dart';
 
 Entity entity(int id, String name, {int? deathChapter, String status = 'alive'}) => Entity(
       id: id,

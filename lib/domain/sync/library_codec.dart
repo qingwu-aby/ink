@@ -66,7 +66,7 @@ class LibraryBundle {
     if (decoded is! Map) throw const FormatException('同步文件不是 JSON 对象');
     final map = decoded.cast<String, dynamic>();
     if (map['format'] != 'mopu.library') {
-      throw const FormatException('这不是墨谱的同步文件');
+      throw const FormatException('这不是可道的同步文件');
     }
     final version = _int(map['version'], 1);
     if (version > kLibraryFormatVersion) {

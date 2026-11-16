@@ -1,4 +1,4 @@
-package io.mopu.mopu
+package io.kedao.app
 
 import io.flutter.embedding.android.FlutterActivity
 

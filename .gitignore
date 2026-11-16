@@ -50,3 +50,8 @@ app.*.map.json
 # Logo 生成素材（字体有 15MB，生成脚本保留）
 .logo/fonts/
 .logo/*.png
+
+# 发布签名（密钥与口令绝不入库）
+android/key.properties
+android/app/*.jks
+android/app/*.keystore

@@ -121,7 +121,7 @@ Future<SyncOutcome> runSync({
   }
 
   final stamp = _stamp(now ?? DateTime.now());
-  final message = '墨谱同步 $stamp · ${local.projects.length} 个项目 · $deviceId';
+  final message = '可道同步 $stamp · ${local.projects.length} 个项目 · $deviceId';
 
   WriteOutcome written;
   try {

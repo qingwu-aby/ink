@@ -106,12 +106,12 @@ class _Header extends StatelessWidget {
                   children: [
                     Image.asset(
                       'assets/logo/seal.png',
-                      width: 40,
-                      height: 40,
+                      width: 42,
+                      height: 42,
                       filterQuality: FilterQuality.high,
                     ),
                     const SizedBox(width: 10),
-                    Text('墨谱', style: context.texts.headlineMedium),
+                    Text('可道', style: context.texts.headlineMedium),
                   ],
                 ),
                 const SizedBox(height: 6),

@@ -4,12 +4,12 @@ import 'dart:io';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mopu/data/db/app_database.dart';
-import 'package:mopu/domain/sync/library_codec.dart';
-import 'package:mopu/domain/sync/library_io.dart';
-import 'package:mopu/domain/sync/github_client.dart';
-import 'package:mopu/domain/sync/sync_service.dart';
-import 'package:mopu/domain/sync/sync_settings.dart';
+import 'package:kedao/data/db/app_database.dart';
+import 'package:kedao/domain/sync/library_codec.dart';
+import 'package:kedao/domain/sync/library_io.dart';
+import 'package:kedao/domain/sync/github_client.dart';
+import 'package:kedao/domain/sync/sync_service.dart';
+import 'package:kedao/domain/sync/sync_settings.dart';
 
 /// 一个只实现 Git Data API 的假 GitHub，够验证真实的调用序列。
 class FakeGitHub {

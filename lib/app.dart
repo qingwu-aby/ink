@@ -25,7 +25,7 @@ class _MopuAppState extends ConsumerState<MopuApp> {
     return SyncWatcher(
       messengerKey: _messengerKey,
       child: MaterialApp.router(
-        title: '墨谱',
+        title: '可道',
         debugShowCheckedModeBanner: false,
         scaffoldMessengerKey: _messengerKey,
         theme: AppTheme.light(),

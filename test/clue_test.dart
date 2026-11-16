@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mopu/data/db/app_database.dart';
-import 'package:mopu/domain/search/paragraph_clue.dart';
+import 'package:kedao/data/db/app_database.dart';
+import 'package:kedao/domain/search/paragraph_clue.dart';
 
 Entity entity(int id, String name, {int importance = 3}) => Entity(
       id: id,

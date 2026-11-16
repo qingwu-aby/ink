@@ -1,4 +1,4 @@
-# 墨谱 MoPu
+# 可道 Kedao
 
 > 正文与图谱，互为注脚。
 
@@ -67,11 +67,31 @@ Flutter · Dart · 单机离线 · iOS / Android / macOS
 
 ## 标志
 
-一枚朱砂「心斋」闲章：行草两字斜落，宣纸白底，边角做了印泥的不匀与磨损。
-应用内、启动器、iOS / macOS 图标都是同一枚印章的等比衍生（`.logo/build_logo.py` 一键重出全套）。
+一枚朱砂「可道」圆印：中山王篆两字斜落（可上左、道下右），收在圆心，红底铺满、没有外圈。
+应用内是同一枚圆印（透明底），Android 用自适应图标（前景为红圆、底板同色），
+iOS / macOS 是铺满的红底方图，交给系统裁形。`.logo/build_logo.py` 一键重出全套。
 
-> 选字说明：原本想用篆书，但可用的开源小篆字体（OFL）里没有「斋」字，只有「心」，
-> 所以改用行草。若日后拿到含「斋」的篆书字体，改 `build_logo.py` 顶部一行即可重出。
+> 篆书用的是 [敬峰中山王篆](https://github.com/SuperMate-Ai/JFZSKSealScript)（OFL-1.1，2700 余字）。
+> 笔画细，只在 1024 母版上做了一道 8px 的等距膨胀，让它在小尺寸站得住，字本身不改。
+
+## 打包发布
+
+```bash
+flutter build appbundle --release        # Google Play 用
+flutter build apk --release --split-per-abi   # 直接分发用（arm64 约 26MB）
+```
+
+签名读 `android/key.properties`（与 `android/app/kedao-release.jks` 一起，**都在 .gitignore 里**）。
+
+```
+storePassword=…
+keyPassword=…
+keyAlias=kedao
+storeFile=kedao-release.jks
+```
+
+> 这两个文件丢了就没法给已上架的包做增量更新——请自己备份好，别只存在这台机器上。
+> 当前的 keystore 是本地生成的（CN=Kedao），Play 上架前可按需换成自己的证书。
 
 ## 界面
 
@@ -231,7 +251,7 @@ lib/
   靠一张 `SyncMarks` 表记住每次同步后两边的时间水位，才分得清"我改了"和"他改了"。
 - **文件是人能读的 JSON**：关系用实体名字引用，不是内部 id；正文实体提及在导入时
   用正文重新扫一遍，不带脏位置过去。
-- **每次都留一个 commit**：`墨谱同步 2026-11-16 12:30 · 3 个项目 · dev-a1b2c3d4`，
+- **每次都留一个 commit**：`可道同步 2026-11-16 12:30 · 3 个项目 · dev-a1b2c3d4`，
   写崩了能直接翻 git 历史找回上一版。
 - **并发安全**：写 ref 时带 `force: false`，如果别的设备刚好抢先推了，PATCH 会失败，
   客户端重新拉取合并后重试，不会覆盖别人的提交。

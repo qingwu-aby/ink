@@ -209,7 +209,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       filterQuality: FilterQuality.high,
                     ),
                     const SizedBox(width: 10),
-                    Text('墨谱 0.1.0', style: context.texts.titleMedium),
+                    Text('可道 0.1.0', style: context.texts.titleMedium),
                   ],
                 ),
                 const SizedBox(height: 10),

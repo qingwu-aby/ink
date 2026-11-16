@@ -1,8 +1,8 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mopu/data/db/app_database.dart';
-import 'package:mopu/domain/search/paragraph_splitter.dart';
-import 'package:mopu/domain/text/entity_matcher.dart';
+import 'package:kedao/data/db/app_database.dart';
+import 'package:kedao/domain/search/paragraph_splitter.dart';
+import 'package:kedao/domain/text/entity_matcher.dart';
 
 void main() {
   group('段落切分', () {

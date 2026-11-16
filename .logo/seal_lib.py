@@ -170,3 +170,66 @@ def draw_seal_placed(canvas, seal_size, text, font_path, positions, char_ratio=0
     edge = np.clip(dist / (seal_size * 0.02), 0, 1)
     arr[:, :, 3] *= np.where(inside, 0.55 + 0.45 * edge, 1.0)
     return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGBA")
+
+
+def draw_seal_round(canvas, diameter, text, font_path, positions, char_ratio=0.4,
+                    *, ring=True, fatten=0, seed=5, red=(166, 58, 47)):
+    """圆形印章：红圆 + 细白圈 + 斜落的字。"""
+    layer = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    c = canvas / 2
+    r = diameter / 2
+    d.ellipse([c - r, c - r, c + r, c + r], fill=red + (255,))
+    if ring:
+        inset = diameter * 0.055
+        rr = r - inset
+        d.ellipse([c - rr, c - rr, c + rr, c + rr],
+                  outline=(247, 245, 239, 255), width=max(1, int(diameter * 0.013)))
+
+    mask = Image.new("L", (canvas, canvas), 0)
+    for ch, (dx, dy, rot) in zip(list(text), positions):
+        m = _char_layer(canvas, ch, font_path, diameter * char_ratio, rot, fatten)
+        shifted = Image.new("L", (canvas, canvas), 0)
+        shifted.paste(m, (int(dx * diameter), int(dy * diameter)))
+        mask = Image.fromarray(np.maximum(np.array(mask), np.array(shifted)))
+    mask = mask.filter(ImageFilter.GaussianBlur(diameter * 0.002))
+
+    glyph = Image.new("RGBA", (canvas, canvas), (247, 245, 239, 0))
+    glyph.putalpha(mask)
+    layer = Image.alpha_composite(layer, glyph)
+
+    arr = np.array(layer).astype(np.float32)
+    arr[:, :, :3] *= _noise(canvas, 0.05, seed)
+    yy, xx = np.mgrid[0:canvas, 0:canvas]
+    dist = np.sqrt((xx - c) ** 2 + (yy - c) ** 2)
+    edge = np.clip((r - dist) / (diameter * 0.025), 0, 1)
+    arr[:, :, 3] *= np.where(dist <= r, 0.5 + 0.5 * edge, 1.0)
+    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGBA")
+
+
+def draw_seal_fill(canvas, text, font_path, positions, char_ratio=0.5,
+                   *, corner=0.0, fatten=0, seed=5, red=(166, 58, 47), glyph_mask=None):
+    """铺满整个画布的红底印章：没有底盘、没有白边，交给系统去打形状。"""
+    layer = Image.new("RGBA", (canvas, canvas), red + (255,))
+    if corner > 0:
+        mask = Image.new("L", (canvas, canvas), 0)
+        ImageDraw.Draw(mask).rounded_rectangle(
+            [0, 0, canvas - 1, canvas - 1], radius=canvas * corner, fill=255)
+        layer.putalpha(mask)
+
+    if glyph_mask is None:
+        glyph_mask = Image.new("L", (canvas, canvas), 0)
+        for ch, (dx, dy, rot) in zip(list(text), positions):
+            m = _char_layer(canvas, ch, font_path, canvas * char_ratio, rot, fatten)
+            shifted = Image.new("L", (canvas, canvas), 0)
+            shifted.paste(m, (int(dx * canvas), int(dy * canvas)))
+            glyph_mask = Image.fromarray(np.maximum(np.array(glyph_mask), np.array(shifted)))
+        glyph_mask = glyph_mask.filter(ImageFilter.GaussianBlur(canvas * 0.0016))
+
+    glyph = Image.new("RGBA", (canvas, canvas), (247, 245, 239, 0))
+    glyph.putalpha(glyph_mask)
+    layer = Image.alpha_composite(layer, glyph)
+
+    arr = np.array(layer).astype(np.float32)
+    arr[:, :, :3] *= _noise(canvas, 0.045, seed)
+    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGBA")

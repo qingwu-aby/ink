@@ -101,7 +101,7 @@ void _paintHeader(
 
   final subPainter = TextPainter(
     text: TextSpan(
-      text: '$entities 个实体 · $relations 条关系 · 墨谱导出',
+      text: '$entities 个实体 · $relations 条关系 · 可道导出',
       style: TextStyle(fontSize: 14, color: muted, height: 1.4),
     ),
     textDirection: ui.TextDirection.ltr,
