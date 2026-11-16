@@ -202,24 +202,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 Row(
                   children: [
-                    Container(
-                      width: 26,
-                      height: 26,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        borderRadius: BorderRadius.circular(7),
-                      ),
-                      child: Text(
-                        '墨',
-                        style: TextStyle(
-                          fontSize: 14,
-                          height: 1,
-                          color: Theme.of(context).colorScheme.onPrimary,
-                          fontFamily: Serif.family,
-                          fontFamilyFallback: Serif.fallback,
-                        ),
-                      ),
+                    Image.asset(
+                      'assets/logo/seal.png',
+                      width: 32,
+                      height: 32,
+                      filterQuality: FilterQuality.high,
                     ),
                     const SizedBox(width: 10),
                     Text('墨谱 0.1.0', style: context.texts.titleMedium),

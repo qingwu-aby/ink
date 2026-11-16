@@ -104,24 +104,11 @@ class _Header extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Container(
-                      width: 30,
-                      height: 30,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '墨',
-                        style: TextStyle(
-                          fontSize: 16,
-                          height: 1,
-                          color: Theme.of(context).colorScheme.onPrimary,
-                          fontFamily: Serif.family,
-                          fontFamilyFallback: Serif.fallback,
-                        ),
-                      ),
+                    Image.asset(
+                      'assets/logo/seal.png',
+                      width: 40,
+                      height: 40,
+                      filterQuality: FilterQuality.high,
                     ),
                     const SizedBox(width: 10),
                     Text('墨谱', style: context.texts.headlineMedium),
