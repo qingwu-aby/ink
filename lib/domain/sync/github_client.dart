@@ -18,7 +18,11 @@ class GitHubException implements Exception {
       };
 
   @override
-  String toString() => '$friendly（HTTP $statusCode）$message';
+  String toString() {
+    // 0 = 本地就失败了（没网、地址写错），不该显示成 HTTP 状态码
+    if (statusCode == 0) return message;
+    return '$friendly（HTTP $statusCode）$message';
+  }
 }
 
 /// 引用更新失败 = 有人抢先推了，调用方应该重新拉一次再试。
@@ -99,7 +103,7 @@ class GitHubClient {
         _ => throw ArgumentError('不支持的 method: $method'),
       };
     } catch (error) {
-      throw GitHubException(0, '网络请求失败：$error');
+      throw GitHubException(0, '连不上 GitHub：$error');
     }
 
     if (response.statusCode == 404 && allow404) {

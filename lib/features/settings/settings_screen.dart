@@ -161,6 +161,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 14),
           SectionCard(
+            title: '同步',
+            subtitle: '用你自己的 GitHub 私有仓库在三端之间搬运数据，不经任何中转服务',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.sync_outlined, size: 20),
+              title: Text('GitHub 同步', style: context.texts.titleMedium),
+              subtitle: Text('仓库地址由你填，Token 只存本机', style: context.texts.labelSmall),
+              trailing: const Icon(Icons.chevron_right, size: 18),
+              onTap: () => context.push('/settings/sync'),
+            ),
+          ),
+          const SizedBox(height: 14),
+          SectionCard(
             title: '数据',
             child: Column(
               children: [
@@ -209,7 +222,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       filterQuality: FilterQuality.high,
                     ),
                     const SizedBox(width: 10),
-                    Text('可道 0.1.0', style: context.texts.titleMedium),
+                    Text('可道 1.0.0', style: context.texts.titleMedium),
                   ],
                 ),
                 const SizedBox(height: 10),
