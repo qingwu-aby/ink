@@ -5,6 +5,7 @@ import '../data/db/app_database.dart';
 import '../domain/lint/lint_engine.dart';
 import '../domain/llm/ai_settings_store.dart';
 import '../domain/llm/llm_client.dart';
+import '../domain/suggest/suggestion_engine.dart';
 import '../domain/text/entity_matcher.dart';
 
 /// 由 main() 覆盖为真实实例，避免重复打开数据库。
@@ -85,6 +86,19 @@ final lintProvider = FutureProvider.family<LintReport, int>((ref, pid) async {
     relations: relations,
     mentions: mentions,
     foreshadows: foreshadows,
+  );
+});
+
+final suggestionsProvider = FutureProvider.family<List<Suggestion>, int>((ref, pid) async {
+  final chapters = await ref.watch(chaptersProvider(pid).future);
+  final entities = await ref.watch(entitiesProvider(pid).future);
+  final relations = await ref.watch(relationsProvider(pid).future);
+  final mentions = await ref.watch(mentionsProvider(pid).future);
+  return SuggestionEngine.analyse(
+    entities: entities,
+    relations: relations,
+    chapters: chapters,
+    mentions: mentions,
   );
 });
 

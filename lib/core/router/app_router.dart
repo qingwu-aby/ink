@@ -12,6 +12,7 @@ import '../../features/settings/settings_screen.dart';
 import '../../features/settings/sync_screen.dart';
 import '../../features/search/search_screen.dart';
 import '../../features/snapshot/snapshot_screen.dart';
+import '../../features/suggest/suggestions_screen.dart';
 import '../../features/timeline/timeline_screen.dart';
 
 int _intParam(GoRouterState state, String name) =>
@@ -55,6 +56,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           chapterId: _intParam(state, 'cid'),
           initialOffset: int.tryParse(state.uri.queryParameters['at'] ?? ''),
         ),
+      ),
+      GoRoute(
+        path: '/p/:pid/suggestions',
+        builder: (context, state) => SuggestionsScreen(projectId: _intParam(state, 'pid')),
       ),
       GoRoute(
         path: '/p/:pid/search',

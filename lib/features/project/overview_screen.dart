@@ -8,6 +8,8 @@ import '../../data/db/app_database.dart';
 import '../../domain/lint/lint_engine.dart';
 import '../../domain/taxonomy.dart';
 import '../../providers.dart';
+import '../../domain/suggest/suggestion_engine.dart';
+import '../suggest/suggestions_screen.dart';
 import 'project_shell.dart';
 
 class OverviewScreen extends ConsumerWidget {
@@ -105,6 +107,8 @@ class OverviewScreen extends ConsumerWidget {
           const SizedBox(height: 14),
           _StatsCard(stats: stats),
         ],
+        const SizedBox(height: 14),
+        _SuggestionsCard(projectId: projectId),
         const SizedBox(height: 14),
         SectionCard(
           title: '实体构成',
@@ -404,6 +408,75 @@ class _KindBars extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+
+/// 概览上的「接下来写什么」：两条最值得动的空档。
+class _SuggestionsCard extends ConsumerWidget {
+  const _SuggestionsCard({required this.projectId});
+
+  final int projectId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final list = ref.watch(suggestionsProvider(projectId)).value ?? const <Suggestion>[];
+
+    return SectionCard(
+      title: '接下来写什么',
+      subtitle: list.isEmpty ? '图谱里的素材都用上了' : '${list.length} 条没写到的空档',
+      action: TextButton(
+        onPressed: () => context.push('/p/$projectId/suggestions'),
+        child: const Text('全部'),
+      ),
+      child: list.isEmpty
+          ? Text(
+              '关系都写到了，人也都在场。继续写就好。',
+              style: context.texts.bodySmall,
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final item in list.take(2))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          margin: const EdgeInsets.only(top: 6),
+                          width: 5,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: SuggestionsScreen.colorOf(item.kind, context),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.title,
+                                style: context.texts.bodyMedium?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                item.kind.label,
+                                style: context.texts.labelSmall?.copyWith(fontSize: 10),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 }
