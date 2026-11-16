@@ -1,0 +1,22 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - build/**
+    - android/**
+    - ios/**
+    - macos/**
+  language:
+    strict-casts: false
+    strict-raw-types: false
+  errors:
+    unused_element: warning
+    unused_local_variable: warning
+
+linter:
+  rules:
+    prefer_single_quotes: true
+    avoid_print: false
+    use_super_parameters: true
