@@ -177,6 +177,26 @@ class FakeGitHub {
   int get commitCount => _commits.length;
 }
 
+/// 用假仓库跑一次同步。
+Future<SyncOutcome> syncWith(
+  AppDatabase db,
+  SyncSettingsStore store,
+  FakeGitHub fake, {
+  Map<String, ConflictResolution>? resolutions,
+}) =>
+    runSync(
+      db: db,
+      store: store,
+      resolutions: resolutions,
+      clientFactory: (s) => GitHubClient(
+        owner: 'o',
+        repo: 'r',
+        token: s.token,
+        branch: s.branch,
+        apiBase: fake.base,
+      ),
+    );
+
 Future<AppDatabase> emptyDb() async => AppDatabase.forTesting(NativeDatabase.memory());
 
 Future<void> seedBook(AppDatabase db, String title) async {
@@ -447,6 +467,151 @@ void main() {
       expect(outcome.skipped, ['听雨录']);
       expect(await db.allProjects(), isEmpty);
       await db.close();
+    });
+  });
+
+  group('两边都改过', () {
+    Future<({AppDatabase a, AppDatabase b, SyncSettingsStore sa, SyncSettingsStore sb, FakeGitHub fake})>
+        pair() async {
+      final fake = await FakeGitHub.start();
+      final a = await emptyDb();
+      await seedBook(a, '听雨录');
+      final sa = SyncSettingsStore(a);
+      await sa.save(const SyncSettings(repository: 'o/r', branch: 'main', token: 't'));
+      await syncWith(a, sa, fake); // A 先推
+
+      final b = await emptyDb();
+      final sb = SyncSettingsStore(b);
+      await sb.save(const SyncSettings(repository: 'o/r', branch: 'main', token: 't'));
+      await syncWith(b, sb, fake); // B 拉，建立水位
+      // drift 存时间到秒，测试里连着改会撞在同一秒，这里错开一下
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+      return (a: a, b: b, sa: sa, sb: sb, fake: fake);
+    }
+
+    test('检测到两边都改过时先停下来，不动数据', () async {
+      final env = await pair();
+
+      // 两边各改一次，时间错开一秒（存储精度是秒）
+      await env.b.updateProject((await env.b.allProjects()).first.copyWith(title: 'B 版'));
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+      await env.a.updateProject((await env.a.allProjects()).first.copyWith(title: 'A 版'));
+      await syncWith(env.a, env.sa, env.fake); // A 推，远端变成 A 版
+
+      final outcome = await syncWith(env.b, env.sb, env.fake);
+
+      expect(outcome.needsDecision, isTrue);
+      expect(outcome.conflicts.length, 1);
+      // 标题取本地那份（书架上是它）
+      expect(outcome.conflicts.first.title, 'B 版');
+      expect(outcome.pushed, isFalse);
+      // 冲突时什么都不能改
+      expect((await env.b.allProjects()).first.title, 'B 版');
+
+      await env.a.close();
+      await env.b.close();
+      await env.fake.stop();
+    });
+
+    test('选「两个都留」：本地留着，远端那份存成一本新书', () async {
+      final env = await pair();
+      await env.b.updateProject((await env.b.allProjects()).first.copyWith(title: 'B 版'));
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+      await env.a.updateProject((await env.a.allProjects()).first.copyWith(title: 'A 版'));
+      await syncWith(env.a, env.sa, env.fake);
+
+      final pending = await syncWith(env.b, env.sb, env.fake);
+      final outcome = await syncWith(
+        env.b,
+        env.sb,
+        env.fake,
+        resolutions: {
+          for (final conflict in pending.conflicts)
+            conflict.syncId: ConflictResolution.keepBoth,
+        },
+      );
+
+      expect(outcome.pushed, isTrue);
+      final titles = (await env.b.allProjects()).map((p) => p.title).toList()..sort();
+      expect(titles, ['A 版（远端副本）', 'B 版']);
+
+      await env.a.close();
+      await env.b.close();
+      await env.fake.stop();
+    });
+
+    test('选「用远端的」：本地被覆盖', () async {
+      final env = await pair();
+      await env.b.updateProject((await env.b.allProjects()).first.copyWith(title: 'B 版'));
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+      await env.a.updateProject((await env.a.allProjects()).first.copyWith(title: 'A 版'));
+      await syncWith(env.a, env.sa, env.fake);
+
+      final pending = await syncWith(env.b, env.sb, env.fake);
+      await syncWith(
+        env.b,
+        env.sb,
+        env.fake,
+        resolutions: {
+          for (final conflict in pending.conflicts)
+            conflict.syncId: ConflictResolution.keepRemote,
+        },
+      );
+
+      expect((await env.b.allProjects()).first.title, 'A 版');
+
+      await env.a.close();
+      await env.b.close();
+      await env.fake.stop();
+    });
+
+    test('选「用我的」：本地推上去覆盖远端', () async {
+      final env = await pair();
+      await env.b.updateProject((await env.b.allProjects()).first.copyWith(title: 'B 版'));
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+      await env.a.updateProject((await env.a.allProjects()).first.copyWith(title: 'A 版'));
+      await syncWith(env.a, env.sa, env.fake);
+
+      final pending = await syncWith(env.b, env.sb, env.fake);
+      await syncWith(
+        env.b,
+        env.sb,
+        env.fake,
+        resolutions: {
+          for (final conflict in pending.conflicts)
+            conflict.syncId: ConflictResolution.keepLocal,
+        },
+      );
+
+      expect((await env.b.allProjects()).first.title, 'B 版');
+      // 远端现在是 B 版：换一台干净设备拉一次就知道了
+      final c = await emptyDb();
+      final sc = SyncSettingsStore(c);
+      await sc.save(const SyncSettings(repository: 'o/r', branch: 'main', token: 't'));
+      await syncWith(c, sc, env.fake);
+      expect((await c.allProjects()).first.title, 'B 版');
+
+      await env.a.close();
+      await env.b.close();
+      await c.close();
+      await env.fake.stop();
+    });
+
+    test('只有一方改过时不报冲突，直接 LWW', () async {
+      final env = await pair();
+      await env.b.updateProject((await env.b.allProjects()).first.copyWith(title: 'B 版'));
+
+      final outcome = await syncWith(env.b, env.sb, env.fake);
+      expect(outcome.needsDecision, isFalse);
+      expect(outcome.pushed, isTrue);
+
+      // A 下次拉下来就是 B 版
+      await syncWith(env.a, env.sa, env.fake);
+      expect((await env.a.allProjects()).first.title, 'B 版');
+
+      await env.a.close();
+      await env.b.close();
+      await env.fake.stop();
     });
   });
 

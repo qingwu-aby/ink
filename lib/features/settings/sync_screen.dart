@@ -133,7 +133,27 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     });
     try {
       await _save();
-      final outcome = await runSync(db: ref.read(databaseProvider), store: _store);
+      var outcome = await runSync(db: ref.read(databaseProvider), store: _store);
+
+      // 两边都改过：先问清楚，别静默覆盖
+      if (outcome.needsDecision) {
+        if (!mounted) return;
+        setState(() => _busy = false);
+        final choices = await _askResolutions(outcome.conflicts);
+        if (choices == null) {
+          if (!mounted) return;
+          setState(() => _status = '已取消，这次没有改动任何数据');
+          return;
+        }
+        if (!mounted) return;
+        setState(() => _busy = true);
+        outcome = await runSync(
+          db: ref.read(databaseProvider),
+          store: _store,
+          resolutions: choices,
+        );
+      }
+
       if (!mounted) return;
       setState(() {
         _lastOutcome = outcome;
@@ -150,6 +170,14 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<Map<String, ConflictResolution>?> _askResolutions(List<SyncConflict> conflicts) {
+    return showDialog<Map<String, ConflictResolution>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _ConflictDialog(conflicts: conflicts),
+    );
   }
 
   @override
@@ -299,7 +327,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _Rule('项目是同步的原子单位', '同一个项目在两台设备上都改过时，更新时间较新的那份胜出，不会出现半本书的情况。'),
+                      _Rule('平时谁新用谁，撞车时你说了算', '只有一边改过就直接合并（较新的胜出）。两边都改过同一本书时不会自动覆盖，'
+                          '会停下来让你逐本选择：用我的 / 用远端的 / 两个都留。'),
                       _Rule('正文提及会重新索引', '同步文件只带正文和实体表，提及是从正文重新扫出来的，不会带过去脏位置。'),
                       _Rule('删除会同步（带墓碑）', '删项目时留一条墓碑，别的设备同步时若本地版本更旧就跟着删；若删除之后又改过，则保留并复活。'),
                     ],
@@ -392,6 +421,106 @@ class _Rule extends StatelessWidget {
           Text(body, style: context.texts.bodySmall?.copyWith(height: 1.6)),
         ],
       ),
+    );
+  }
+}
+
+
+/// 冲突面板：让作者逐本决定，而不是替他选。
+class _ConflictDialog extends StatefulWidget {
+  const _ConflictDialog({required this.conflicts});
+
+  final List<SyncConflict> conflicts;
+
+  @override
+  State<_ConflictDialog> createState() => _ConflictDialogState();
+}
+
+class _ConflictDialogState extends State<_ConflictDialog> {
+  late final Map<String, ConflictResolution> _choices = {
+    for (final conflict in widget.conflicts) conflict.syncId: ConflictResolution.keepBoth,
+  };
+
+  String _time(DateTime value) {
+    final local = value.toLocal();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('这些书两边都改过'),
+      content: SizedBox(
+        width: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '上次同步之后，本地和远端都动过同一本书。默认「两个都留」最安全。',
+              style: context.texts.bodySmall?.copyWith(height: 1.6),
+            ),
+            const SizedBox(height: 12),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: widget.conflicts.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final conflict = widget.conflicts[index];
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: context.sunken,
+                      borderRadius: BorderRadius.circular(Radii.sm),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(conflict.title, style: context.texts.titleMedium),
+                        const SizedBox(height: 3),
+                        Text(
+                          '本地 ${_time(conflict.localUpdatedAt)} · 远端 ${_time(conflict.remoteUpdatedAt)}',
+                          style: context.texts.labelSmall,
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          children: [
+                            for (final resolution in ConflictResolution.values)
+                              ChoiceChip(
+                                label: Text(
+                                  resolution.label,
+                                  style: const TextStyle(fontSize: 11.5),
+                                ),
+                                selected: _choices[conflict.syncId] == resolution,
+                                onSelected: (_) => setState(
+                                  () => _choices[conflict.syncId] = resolution,
+                                ),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('先不同步'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_choices),
+          child: const Text('按这个来'),
+        ),
+      ],
     );
   }
 }

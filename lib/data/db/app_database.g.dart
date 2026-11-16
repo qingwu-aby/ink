@@ -3657,6 +3657,250 @@ class ProjectTombstonesCompanion extends UpdateCompanion<ProjectTombstone> {
   }
 }
 
+class $SyncMarksTable extends SyncMarks
+    with TableInfo<$SyncMarksTable, SyncMark> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SyncMarksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _syncIdMeta = const VerificationMeta('syncId');
+  @override
+  late final GeneratedColumn<String> syncId = GeneratedColumn<String>(
+      'sync_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _localUpdatedAtMeta =
+      const VerificationMeta('localUpdatedAt');
+  @override
+  late final GeneratedColumn<DateTime> localUpdatedAt =
+      GeneratedColumn<DateTime>('local_updated_at', aliasedName, false,
+          type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _remoteUpdatedAtMeta =
+      const VerificationMeta('remoteUpdatedAt');
+  @override
+  late final GeneratedColumn<DateTime> remoteUpdatedAt =
+      GeneratedColumn<DateTime>('remote_updated_at', aliasedName, false,
+          type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [syncId, localUpdatedAt, remoteUpdatedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sync_marks';
+  @override
+  VerificationContext validateIntegrity(Insertable<SyncMark> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('sync_id')) {
+      context.handle(_syncIdMeta,
+          syncId.isAcceptableOrUnknown(data['sync_id']!, _syncIdMeta));
+    } else if (isInserting) {
+      context.missing(_syncIdMeta);
+    }
+    if (data.containsKey('local_updated_at')) {
+      context.handle(
+          _localUpdatedAtMeta,
+          localUpdatedAt.isAcceptableOrUnknown(
+              data['local_updated_at']!, _localUpdatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_localUpdatedAtMeta);
+    }
+    if (data.containsKey('remote_updated_at')) {
+      context.handle(
+          _remoteUpdatedAtMeta,
+          remoteUpdatedAt.isAcceptableOrUnknown(
+              data['remote_updated_at']!, _remoteUpdatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_remoteUpdatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {syncId};
+  @override
+  SyncMark map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SyncMark(
+      syncId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}sync_id'])!,
+      localUpdatedAt: attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime, data['${effectivePrefix}local_updated_at'])!,
+      remoteUpdatedAt: attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime, data['${effectivePrefix}remote_updated_at'])!,
+    );
+  }
+
+  @override
+  $SyncMarksTable createAlias(String alias) {
+    return $SyncMarksTable(attachedDatabase, alias);
+  }
+}
+
+class SyncMark extends DataClass implements Insertable<SyncMark> {
+  final String syncId;
+  final DateTime localUpdatedAt;
+  final DateTime remoteUpdatedAt;
+  const SyncMark(
+      {required this.syncId,
+      required this.localUpdatedAt,
+      required this.remoteUpdatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['sync_id'] = Variable<String>(syncId);
+    map['local_updated_at'] = Variable<DateTime>(localUpdatedAt);
+    map['remote_updated_at'] = Variable<DateTime>(remoteUpdatedAt);
+    return map;
+  }
+
+  SyncMarksCompanion toCompanion(bool nullToAbsent) {
+    return SyncMarksCompanion(
+      syncId: Value(syncId),
+      localUpdatedAt: Value(localUpdatedAt),
+      remoteUpdatedAt: Value(remoteUpdatedAt),
+    );
+  }
+
+  factory SyncMark.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SyncMark(
+      syncId: serializer.fromJson<String>(json['syncId']),
+      localUpdatedAt: serializer.fromJson<DateTime>(json['localUpdatedAt']),
+      remoteUpdatedAt: serializer.fromJson<DateTime>(json['remoteUpdatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'syncId': serializer.toJson<String>(syncId),
+      'localUpdatedAt': serializer.toJson<DateTime>(localUpdatedAt),
+      'remoteUpdatedAt': serializer.toJson<DateTime>(remoteUpdatedAt),
+    };
+  }
+
+  SyncMark copyWith(
+          {String? syncId,
+          DateTime? localUpdatedAt,
+          DateTime? remoteUpdatedAt}) =>
+      SyncMark(
+        syncId: syncId ?? this.syncId,
+        localUpdatedAt: localUpdatedAt ?? this.localUpdatedAt,
+        remoteUpdatedAt: remoteUpdatedAt ?? this.remoteUpdatedAt,
+      );
+  SyncMark copyWithCompanion(SyncMarksCompanion data) {
+    return SyncMark(
+      syncId: data.syncId.present ? data.syncId.value : this.syncId,
+      localUpdatedAt: data.localUpdatedAt.present
+          ? data.localUpdatedAt.value
+          : this.localUpdatedAt,
+      remoteUpdatedAt: data.remoteUpdatedAt.present
+          ? data.remoteUpdatedAt.value
+          : this.remoteUpdatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncMark(')
+          ..write('syncId: $syncId, ')
+          ..write('localUpdatedAt: $localUpdatedAt, ')
+          ..write('remoteUpdatedAt: $remoteUpdatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(syncId, localUpdatedAt, remoteUpdatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SyncMark &&
+          other.syncId == this.syncId &&
+          other.localUpdatedAt == this.localUpdatedAt &&
+          other.remoteUpdatedAt == this.remoteUpdatedAt);
+}
+
+class SyncMarksCompanion extends UpdateCompanion<SyncMark> {
+  final Value<String> syncId;
+  final Value<DateTime> localUpdatedAt;
+  final Value<DateTime> remoteUpdatedAt;
+  final Value<int> rowid;
+  const SyncMarksCompanion({
+    this.syncId = const Value.absent(),
+    this.localUpdatedAt = const Value.absent(),
+    this.remoteUpdatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SyncMarksCompanion.insert({
+    required String syncId,
+    required DateTime localUpdatedAt,
+    required DateTime remoteUpdatedAt,
+    this.rowid = const Value.absent(),
+  })  : syncId = Value(syncId),
+        localUpdatedAt = Value(localUpdatedAt),
+        remoteUpdatedAt = Value(remoteUpdatedAt);
+  static Insertable<SyncMark> custom({
+    Expression<String>? syncId,
+    Expression<DateTime>? localUpdatedAt,
+    Expression<DateTime>? remoteUpdatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (syncId != null) 'sync_id': syncId,
+      if (localUpdatedAt != null) 'local_updated_at': localUpdatedAt,
+      if (remoteUpdatedAt != null) 'remote_updated_at': remoteUpdatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SyncMarksCompanion copyWith(
+      {Value<String>? syncId,
+      Value<DateTime>? localUpdatedAt,
+      Value<DateTime>? remoteUpdatedAt,
+      Value<int>? rowid}) {
+    return SyncMarksCompanion(
+      syncId: syncId ?? this.syncId,
+      localUpdatedAt: localUpdatedAt ?? this.localUpdatedAt,
+      remoteUpdatedAt: remoteUpdatedAt ?? this.remoteUpdatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (syncId.present) {
+      map['sync_id'] = Variable<String>(syncId.value);
+    }
+    if (localUpdatedAt.present) {
+      map['local_updated_at'] = Variable<DateTime>(localUpdatedAt.value);
+    }
+    if (remoteUpdatedAt.present) {
+      map['remote_updated_at'] = Variable<DateTime>(remoteUpdatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncMarksCompanion(')
+          ..write('syncId: $syncId, ')
+          ..write('localUpdatedAt: $localUpdatedAt, ')
+          ..write('remoteUpdatedAt: $remoteUpdatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SettingsTable extends Settings
     with TableInfo<$SettingsTable, AppSetting> {
   @override
@@ -3859,6 +4103,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ParagraphsTable paragraphs = $ParagraphsTable(this);
   late final $ProjectTombstonesTable projectTombstones =
       $ProjectTombstonesTable(this);
+  late final $SyncMarksTable syncMarks = $SyncMarksTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -3874,6 +4119,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         foreshadows,
         paragraphs,
         projectTombstones,
+        syncMarks,
         settings
       ];
 }
@@ -5708,6 +5954,145 @@ typedef $$ProjectTombstonesTableProcessedTableManager = ProcessedTableManager<
     ),
     ProjectTombstone,
     PrefetchHooks Function()>;
+typedef $$SyncMarksTableCreateCompanionBuilder = SyncMarksCompanion Function({
+  required String syncId,
+  required DateTime localUpdatedAt,
+  required DateTime remoteUpdatedAt,
+  Value<int> rowid,
+});
+typedef $$SyncMarksTableUpdateCompanionBuilder = SyncMarksCompanion Function({
+  Value<String> syncId,
+  Value<DateTime> localUpdatedAt,
+  Value<DateTime> remoteUpdatedAt,
+  Value<int> rowid,
+});
+
+class $$SyncMarksTableFilterComposer
+    extends Composer<_$AppDatabase, $SyncMarksTable> {
+  $$SyncMarksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get syncId => $composableBuilder(
+      column: $table.syncId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get localUpdatedAt => $composableBuilder(
+      column: $table.localUpdatedAt,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get remoteUpdatedAt => $composableBuilder(
+      column: $table.remoteUpdatedAt,
+      builder: (column) => ColumnFilters(column));
+}
+
+class $$SyncMarksTableOrderingComposer
+    extends Composer<_$AppDatabase, $SyncMarksTable> {
+  $$SyncMarksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get syncId => $composableBuilder(
+      column: $table.syncId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get localUpdatedAt => $composableBuilder(
+      column: $table.localUpdatedAt,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get remoteUpdatedAt => $composableBuilder(
+      column: $table.remoteUpdatedAt,
+      builder: (column) => ColumnOrderings(column));
+}
+
+class $$SyncMarksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SyncMarksTable> {
+  $$SyncMarksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get syncId =>
+      $composableBuilder(column: $table.syncId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get localUpdatedAt => $composableBuilder(
+      column: $table.localUpdatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get remoteUpdatedAt => $composableBuilder(
+      column: $table.remoteUpdatedAt, builder: (column) => column);
+}
+
+class $$SyncMarksTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $SyncMarksTable,
+    SyncMark,
+    $$SyncMarksTableFilterComposer,
+    $$SyncMarksTableOrderingComposer,
+    $$SyncMarksTableAnnotationComposer,
+    $$SyncMarksTableCreateCompanionBuilder,
+    $$SyncMarksTableUpdateCompanionBuilder,
+    (SyncMark, BaseReferences<_$AppDatabase, $SyncMarksTable, SyncMark>),
+    SyncMark,
+    PrefetchHooks Function()> {
+  $$SyncMarksTableTableManager(_$AppDatabase db, $SyncMarksTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SyncMarksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SyncMarksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SyncMarksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> syncId = const Value.absent(),
+            Value<DateTime> localUpdatedAt = const Value.absent(),
+            Value<DateTime> remoteUpdatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SyncMarksCompanion(
+            syncId: syncId,
+            localUpdatedAt: localUpdatedAt,
+            remoteUpdatedAt: remoteUpdatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String syncId,
+            required DateTime localUpdatedAt,
+            required DateTime remoteUpdatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SyncMarksCompanion.insert(
+            syncId: syncId,
+            localUpdatedAt: localUpdatedAt,
+            remoteUpdatedAt: remoteUpdatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$SyncMarksTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $SyncMarksTable,
+    SyncMark,
+    $$SyncMarksTableFilterComposer,
+    $$SyncMarksTableOrderingComposer,
+    $$SyncMarksTableAnnotationComposer,
+    $$SyncMarksTableCreateCompanionBuilder,
+    $$SyncMarksTableUpdateCompanionBuilder,
+    (SyncMark, BaseReferences<_$AppDatabase, $SyncMarksTable, SyncMark>),
+    SyncMark,
+    PrefetchHooks Function()>;
 typedef $$SettingsTableCreateCompanionBuilder = SettingsCompanion Function({
   required String key,
   Value<String> value,
@@ -5850,6 +6235,8 @@ class $AppDatabaseManager {
       $$ParagraphsTableTableManager(_db, _db.paragraphs);
   $$ProjectTombstonesTableTableManager get projectTombstones =>
       $$ProjectTombstonesTableTableManager(_db, _db.projectTombstones);
+  $$SyncMarksTableTableManager get syncMarks =>
+      $$SyncMarksTableTableManager(_db, _db.syncMarks);
   $$SettingsTableTableManager get settings =>
       $$SettingsTableTableManager(_db, _db.settings);
 }

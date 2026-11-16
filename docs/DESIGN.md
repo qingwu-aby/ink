@@ -120,8 +120,15 @@ SQLite ──exportLibrary──► LibraryBundle(JSON) ──Git Data API──
   正文提及导入时用 `EntityMatcher` 重扫，同步文件里不存位置。
 - **传输**：Git Data API（blob → tree → commit → ref）而不是 Contents API——
   后者单文件 1MB 上限，一本 40 万字的书就超了。
-- **并发**：PATCH ref 带 `force: false`；冲突抛 `SyncConflictException`，
+- **并发（git 层）**：PATCH ref 带 `force: false`；冲突抛 `SyncConflictException`，
   服务层重新拉取、合并、重试一次，绝不覆盖别人的提交。
+- **并发（人层）**：项目级 LWW 只在"一方动过"时安全。两边都改过同一本书，静默 LWW 会吃掉一份。
+  所以引入 `SyncMarks(syncId, localUpdatedAt, remoteUpdatedAt)`——每次同步成功后记下两边水位。
+  下次同步时若本地与远端都偏离水位，就**不写数据**，先把冲突报上去：
+  - 用我的：抬本地 `updatedAt`，合并时自然胜出；
+  - 用远端的：跳过时间戳检查，强制用远端覆盖本地；
+  - 两个都留：远端那份换一个新 `syncId` 存成"（远端副本）"，本地保留并抬时间戳，两份都会推上去。
+  没有水位（首次同步 / 老版本升级）时退回 LWW，不制造惊喜。
 - **删除两段式**：
   - 软删除：`Projects.deletedAt` 非空。项目仍完整存在，只是书架不展示；该字段随同步走，
     所以所有设备都进各自回收站，30 天内可恢复。

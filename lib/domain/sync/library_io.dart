@@ -201,6 +201,41 @@ Future<ImportOutcome> importLibrary(AppDatabase db, LibraryBundle bundle) async 
   );
 }
 
+/// 冲突时选「用远端的」：不管时间戳，直接用远端覆盖本地。
+Future<void> forcePullProject(AppDatabase db, ProjectBundle bundle) async {
+  final local = await db.projectBySyncId(bundle.syncId);
+  if (local == null) {
+    await _insertProject(db, bundle);
+    return;
+  }
+  await _overwriteProject(db, local.id, bundle);
+}
+
+/// 冲突时选「两个都留」：把远端那份存成一本新书，换一个 syncId。
+Future<int> importProjectCopy(
+  AppDatabase db,
+  ProjectBundle bundle, {
+  required String syncId,
+  required String title,
+}) {
+  return _insertProject(
+    db,
+    ProjectBundle(
+      syncId: syncId,
+      title: title,
+      genre: bundle.genre,
+      synopsis: bundle.synopsis,
+      wordGoal: bundle.wordGoal,
+      updatedAt: bundle.updatedAt,
+      deletedAt: bundle.deletedAt,
+      chapters: bundle.chapters,
+      entities: bundle.entities,
+      relations: bundle.relations,
+      foreshadows: bundle.foreshadows,
+    ),
+  );
+}
+
 Future<int> _insertProject(AppDatabase db, ProjectBundle bundle) async {
   return db.transaction(() async {
     final projectId = await db.into(db.projects).insert(

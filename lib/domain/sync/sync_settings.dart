@@ -141,6 +141,45 @@ class SyncSettingsStore {
 /// 同步文件在仓库里的路径。放在固定目录下，将来要放别的东西也好扩展。
 const String kSyncPath = 'mopu/library.json';
 
+/// 冲突时怎么处理。
+enum ConflictResolution {
+  keepLocal('用我的'),
+  keepRemote('用远端的'),
+  keepBoth('两个都留');
+
+  const ConflictResolution(this.label);
+  final String label;
+}
+
+/// 一本书在两边都改过。
+class SyncConflict {
+  const SyncConflict({
+    required this.syncId,
+    required this.title,
+    required this.localUpdatedAt,
+    required this.remoteUpdatedAt,
+  });
+
+  final String syncId;
+  final String title;
+  final DateTime localUpdatedAt;
+  final DateTime remoteUpdatedAt;
+
+  Map<String, dynamic> toJson() => {
+        'syncId': syncId,
+        'title': title,
+        'local': localUpdatedAt.toUtc().toIso8601String(),
+        'remote': remoteUpdatedAt.toUtc().toIso8601String(),
+      };
+
+  static SyncConflict fromJson(Map<String, dynamic> json) => SyncConflict(
+        syncId: '${json['syncId'] ?? ''}',
+        title: '${json['title'] ?? ''}',
+        localUpdatedAt: DateTime.tryParse('${json['local']}') ?? DateTime.fromMillisecondsSinceEpoch(0),
+        remoteUpdatedAt: DateTime.tryParse('${json['remote']}') ?? DateTime.fromMillisecondsSinceEpoch(0),
+      );
+}
+
 /// 同步结果，直接拿去展示。
 class SyncOutcome {
   const SyncOutcome({
@@ -153,6 +192,7 @@ class SyncOutcome {
     required this.commitSha,
     required this.at,
     required this.notes,
+    this.conflicts = const [],
   });
 
   final List<String> created;
@@ -166,6 +206,11 @@ class SyncOutcome {
   final String? commitSha;
   final DateTime at;
   final List<String> notes;
+
+  /// 非空表示「两边都改过」，还没动数据，等用户选
+  final List<SyncConflict> conflicts;
+
+  bool get needsDecision => conflicts.isNotEmpty;
 
   bool get changedAnything =>
       created.isNotEmpty || updated.isNotEmpty || removed.isNotEmpty || pushed;
@@ -194,6 +239,7 @@ class SyncOutcome {
         'commitSha': commitSha,
         'at': at.toUtc().toIso8601String(),
         'notes': notes,
+        if (conflicts.isNotEmpty) 'conflicts': [for (final c in conflicts) c.toJson()],
       });
 
   static SyncOutcome? decode(String? raw) {
@@ -213,6 +259,10 @@ class SyncOutcome {
         commitSha: json['commitSha'] as String?,
         at: DateTime.tryParse('${json['at']}') ?? DateTime.now(),
         notes: list('notes'),
+        conflicts: [
+          for (final raw in (json['conflicts'] as List? ?? []))
+            if (raw is Map) SyncConflict.fromJson(raw.cast<String, dynamic>()),
+        ],
       );
     } catch (_) {
       return null;

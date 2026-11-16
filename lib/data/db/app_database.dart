@@ -90,6 +90,7 @@ class ProjectStats {
     Foreshadows,
     Paragraphs,
     ProjectTombstones,
+    SyncMarks,
     Settings,
   ],
 )
@@ -100,7 +101,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -135,6 +136,10 @@ class AppDatabase extends _$AppDatabase {
           // v5：段落索引（正文检索 + 按实体聚合段落）
           if (from < 5) {
             await m.createTable(paragraphs);
+          }
+          // v6：同步水位，用来区分"我改了"和"他改了"
+          if (from < 6) {
+            await m.createTable(syncMarks);
           }
         },
         beforeOpen: (details) async {
@@ -245,6 +250,27 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> removeTombstone(String syncId) =>
       (delete(projectTombstones)..where((t) => t.syncId.equals(syncId))).go();
+
+  Future<Map<String, SyncMark>> allSyncMarks() async {
+    final rows = await select(syncMarks).get();
+    return {for (final row in rows) row.syncId: row};
+  }
+
+  /// 同步成功后重写水位：此时本地与远端内容一致。
+  Future<void> replaceSyncMarks(Map<String, DateTime> updatedAtBySyncId) async {
+    await transaction(() async {
+      await delete(syncMarks).go();
+      if (updatedAtBySyncId.isEmpty) return;
+      await batch((b) => b.insertAll(
+            syncMarks,
+            updatedAtBySyncId.entries.map((entry) => SyncMarksCompanion.insert(
+                  syncId: entry.key,
+                  localUpdatedAt: entry.value,
+                  remoteUpdatedAt: entry.value,
+                )),
+          ));
+    });
+  }
 
   Future<List<ProjectTombstone>> allTombstones() =>
       (select(projectTombstones)..orderBy([(t) => OrderingTerm(expression: t.deletedAt)]))

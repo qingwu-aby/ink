@@ -144,6 +144,20 @@ class ProjectTombstones extends Table {
   Set<Column> get primaryKey => {syncId};
 }
 
+/// 上次同步时，每个项目在本地/远端的 updatedAt 水位。
+///
+/// 没有它就分不清"我改了"和"他改了"：只能比谁的时间更新（LWW），
+/// 而两边都改过时，较新的那份会静默吃掉另一份。
+@DataClassName('SyncMark')
+class SyncMarks extends Table {
+  TextColumn get syncId => text()();
+  DateTimeColumn get localUpdatedAt => dateTime()();
+  DateTimeColumn get remoteUpdatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {syncId};
+}
+
 @DataClassName('AppSetting')
 class Settings extends Table {
   TextColumn get key => text()();
