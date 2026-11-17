@@ -70,7 +70,13 @@ class FakeGitHub {
     if (method == 'GET' && refMatch != null) {
       final branch = refMatch.group(1)!;
       final sha = _refs[branch];
-      if (sha == null) return send(404, {'message': 'Not Found'});
+      if (sha == null) {
+        // 真实 GitHub：空仓库回 409 "Git Repository is empty."，非空仓库回 404
+        if (_commits.isEmpty) {
+          return send(409, {'message': 'Git Repository is empty.'});
+        }
+        return send(404, {'message': 'Not Found'});
+      }
       return send(200, {
         'object': {'sha': sha, 'type': 'commit'},
       });

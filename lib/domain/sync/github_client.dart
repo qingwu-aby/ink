@@ -101,7 +101,11 @@ class GitHubClient {
 
     onHeaders?.call(response.headers);
 
-    if (response.statusCode == 404 && allow404) {
+    // 空仓库的两种「查无此 ref」：普通 404，以及 GitHub 对空仓库返回的
+    // 409 "Git Repository is empty." —— 后者是正常状态，不该当成冲突
+    final isEmptyRepo = response.statusCode == 409 &&
+        response.body.toLowerCase().contains('empty');
+    if ((response.statusCode == 404 || isEmptyRepo) && allow404) {
       return const {};
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -140,6 +144,11 @@ class GitHubClient {
         return '仓库不存在，或这个 Token 看不到它：检查 owner/repo 拼写，'
             '并确认 token 授权范围包含这个仓库';
       case 409:
+        if (lower.contains('empty')) {
+          return '这个仓库还是空的：首次同步会创建第一个 commit，'
+              '如果反复失败，先在网页上给仓库初始化一个 README';
+        }
+        return '远端刚被别的设备改过，请再同步一次';
       case 422:
         return '远端刚被别的设备改过，请再同步一次';
       default:
