@@ -311,20 +311,53 @@ class LlmPreset {
       final api = raw['api'];
       if (api is! Map || api.isEmpty) continue;
       final name = raw['name'] is String ? raw['name'] as String : id;
-      out.add(LlmModel(id: id, name: name, api: '${api.keys.first}'));
+      out.add(LlmModel(
+        id: id,
+        name: name,
+        api: '${api.keys.first}',
+        isFree: _isFree(raw['cost']),
+      ));
     }
-    out.sort((a, b) => a.id.compareTo(b.id));
+    // 付费的排前面：免费模型在 App 里调不通，不该抢眼
+    out.sort((a, b) {
+      if (a.isFree != b.isFree) return a.isFree ? 1 : -1;
+      return a.id.compareTo(b.id);
+    });
     return out;
+  }
+
+  static bool _isFree(Object? cost) {
+    if (cost is! Map) return false;
+    final text = cost['text'];
+    if (text is! Map) return false;
+    final input = text['input'];
+    final output = text['output'];
+    double price(Object? part) {
+      if (part is! Map) return -1;
+      final value = part['price'];
+      return value is num ? value.toDouble() : -1;
+    }
+
+    return price(input) == 0 && price(output) == 0;
   }
 }
 
 class LlmModel {
-  const LlmModel({required this.id, required this.name, this.api = 'chat-completions'});
+  const LlmModel({
+    required this.id,
+    required this.name,
+    this.api = 'chat-completions',
+    this.isFree = false,
+  });
+
   final String id;
   final String name;
 
   /// 这个模型走的协议族（chat-completions / responses / messages / generate-content）
   final String api;
+
+  /// 标价 0 的免费模型：网关只允许在 opencode 内部调用，外部客户端会被拒
+  final bool isFree;
 }
 
 class AiEntityDraft {
@@ -477,8 +510,7 @@ class LlmClient {
     }
 
     if (response.statusCode != 200) {
-      final snippet = response.body.length > 300 ? response.body.substring(0, 300) : response.body;
-      throw LlmException('${response.statusCode} ${response.reasonPhrase}\n$snippet');
+      throw LlmException(_describeError(response.statusCode, response.body));
     }
 
     Object? decoded;
@@ -500,6 +532,41 @@ class LlmClient {
       throw LlmException('模型没有按要求返回 JSON：\n${_trim(content, 240)}');
     }
     return parsed;
+  }
+
+  /// 把 HTTP 错误翻成「该去哪儿改什么」，而不是把 402 原样抛给用户。
+  String _describeError(int status, String body) {
+    final detail = _errorMessage(body);
+    final where = '网关返回 $status';
+    return switch (status) {
+      401 => 'API Key 无效或已过期，重新复制一次。（$where）',
+      402 => '额度不足：这个 Key 所在的 workspace 没有可用的 OpenCode Go 订阅或余额。'
+          '去 opencode.ai/console 确认三件事：① 已订阅 Go / Go Plus；'
+          '② 这个 Key 属于同一个 workspace；③ 本月额度还没用完。'
+          '另外，带 -free 的模型只能在 opencode 内部用，外部客户端调不通，换一个付费模型试试。'
+          '（$where${detail.isEmpty ? '' : '：$detail'}）',
+      403 => '这个模型不允许外部调用：免费模型只能在 opencode 内部使用，'
+          '或者这个 Key 没有该模型的权限。换一个付费模型。（$where${detail.isEmpty ? '' : '：$detail'}）',
+      404 => '模型不存在，或者 API 地址写错了：检查模型 ID 和 Base URL 末尾是不是 /v1。'
+          '（$where${detail.isEmpty ? '' : '：$detail'}）',
+      429 => '请求太频繁，被限流了，等一会儿再试。（$where）',
+      >= 500 => '网关出错（$status），稍后再试。${detail.isEmpty ? '' : '：$detail'}',
+      _ => '$where ${body.length > 240 ? '${body.substring(0, 240)}…' : body}',
+    };
+  }
+
+  static String _errorMessage(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map) {
+        final error = decoded['error'];
+        if (error is Map && error['message'] is String) return '${error['message']}';
+        if (decoded['message'] is String) return '${decoded['message']}';
+      }
+    } on FormatException {
+      // 不是 JSON 就算了
+    }
+    return body.length > 160 ? '${body.substring(0, 160)}…' : body.trim();
   }
 
   static String _trim(String text, int max) =>

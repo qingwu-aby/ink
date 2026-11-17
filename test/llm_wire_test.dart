@@ -131,6 +131,21 @@ void main() {
     });
   });
 
+  group('错误说明', () {
+    test('免费模型能认出来（价格 0）', () {
+      const body = '''
+{"data":[
+ {"id":"paid-model","name":"Paid","cost":{"text":{"input":{"price":1},"output":{"price":2}}},"api":{"chat-completions":{}}},
+ {"id":"free-model","name":"Free","cost":{"text":{"input":{"price":0},"output":{"price":0}}},"api":{"chat-completions":{}}}
+]}''';
+      final models = LlmConfig.presets['opencodego']!.parseModels(body);
+      expect(models.firstWhere((m) => m.id == 'free-model').isFree, isTrue);
+      expect(models.firstWhere((m) => m.id == 'paid-model').isFree, isFalse);
+      // 付费的排在前面
+      expect(models.first.id, 'paid-model');
+    });
+  });
+
   group('模型目录', () {
     const body = '''
 {"data":[

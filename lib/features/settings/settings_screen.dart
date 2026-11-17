@@ -41,6 +41,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _key.text = state.config.apiKey;
   }
 
+  bool get _selectedIsFree {
+    final id = _model.text.trim();
+    for (final model in _allModels) {
+      if (model.id == id) return model.isFree;
+    }
+    return false;
+  }
+
   @override
   void dispose() {
     _baseUrl.dispose();
@@ -168,6 +176,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ),
                       ],
                     ],
+                  ),
+                ],
+                if (_selectedIsFree) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    '这是免费模型：网关只允许在 opencode 内部调用，外部客户端会被拒（402/403）。换成付费模型即可。',
+                    style: context.texts.labelSmall
+                        ?.copyWith(color: Theme.of(context).colorScheme.error, height: 1.5),
                   ),
                 ],
                 const SizedBox(height: 10),
@@ -508,7 +524,10 @@ class _ModelPickerState extends State<_ModelPicker> {
                 return ListTile(
                   dense: true,
                   title: Text(model.id, style: context.texts.bodyMedium),
-                  subtitle: Text(model.name, style: context.texts.labelSmall),
+                  subtitle: Text(
+                    model.isFree ? '${model.name} · 免费，仅 opencode 内可用' : model.name,
+                    style: context.texts.labelSmall,
+                  ),
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
