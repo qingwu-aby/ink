@@ -104,15 +104,28 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         token: _current().token,
         branch: _current().branch,
       );
-      final info = await client.repoInfo();
+      Map<String, String>? headers;
+      final info = await client.repoInfo(onHeaders: (value) => headers = value);
       final head = await client.headSha();
+
+      // classic token 会在响应头里带上 scope；fine-grained 没有这个头，跳过检查
+      final scopes = (headers?['x-oauth-scopes'] ?? '')
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+      final missingWrite = scopes.isNotEmpty && !scopes.contains('repo');
+
       if (!mounted) return;
       setState(() {
         _repoInfo = info;
-        _status = head == null
-            ? '连上了：${info.fullName}（空仓库，首次同步会创建第一个 commit）'
-            : '连上了：${info.fullName} · 分支 ${_current().branch} 已有提交';
-        _statusIsError = false;
+        _status = missingWrite
+            ? '连上了 ${info.fullName}，但这个 Token 只有「${scopes.join('、')}」权限，'
+                '写不进仓库——classic token 需要勾选 repo'
+            : head == null
+                ? '连上了：${info.fullName}（空仓库，首次同步会创建第一个 commit）'
+                : '连上了：${info.fullName} · 分支 ${_current().branch} 已有提交';
+        _statusIsError = missingWrite;
       });
     } catch (error) {
       if (!mounted) return;

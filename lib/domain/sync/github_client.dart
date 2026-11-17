@@ -9,19 +9,11 @@ class GitHubException implements Exception {
   final int statusCode;
   final String message;
 
-  String get friendly => switch (statusCode) {
-        401 => 'Token 无效或已过期',
-        403 => '没有写权限（Token 需要 repo scope）',
-        404 => '仓库不存在，或这个 Token 看不到它',
-        409 || 422 => '远端刚被别的设备改过，请再同步一次',
-        _ => message,
-      };
-
   @override
   String toString() {
     // 0 = 本地就失败了（没网、地址写错），不该显示成 HTTP 状态码
     if (statusCode == 0) return message;
-    return '$friendly（HTTP $statusCode）$message';
+    return '$message（HTTP $statusCode）';
   }
 }
 
@@ -92,6 +84,7 @@ class GitHubClient {
     String path, {
     Object? body,
     bool allow404 = false,
+    void Function(Map<String, String> headers)? onHeaders,
   }) async {
     http.Response response;
     final uri = _uri(path);
@@ -106,20 +99,52 @@ class GitHubClient {
       throw GitHubException(0, '连不上 GitHub：$error');
     }
 
+    onHeaders?.call(response.headers);
+
     if (response.statusCode == 404 && allow404) {
       return const {};
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final hint = _extractMessage(response.body);
+      final body = response.body;
       if ((response.statusCode == 409 || response.statusCode == 422) &&
           (method == 'PATCH' || path.contains('/git/refs'))) {
-        throw SyncConflictException(response.statusCode, hint);
+        throw SyncConflictException(response.statusCode, _describe(response.statusCode, body));
       }
-      throw GitHubException(response.statusCode, hint);
+      throw GitHubException(response.statusCode, _describe(response.statusCode, body));
     }
     if (response.body.isEmpty) return const {};
     final decoded = jsonDecode(utf8.decode(response.bodyBytes));
     return decoded is Map ? decoded.cast<String, dynamic>() : {'value': decoded};
+  }
+
+  /// 把状态码翻成「该去改什么」，而不是只说没权限。
+  String _describe(int status, String body) {
+    final lower = body.toLowerCase();
+    switch (status) {
+      case 401:
+        return 'Token 无效或已过期：确认复制完整、没过有效期';
+      case 403:
+        if (lower.contains('rate limit')) {
+          return '请求太频繁，被 GitHub 限流了，等几分钟再试';
+        }
+        if (lower.contains('resource not accessible')) {
+          return '这个 Token 没有该仓库的权限：fine-grained token 要在 Repository access 里选中这个仓库，'
+              '并把 Contents 设为 Read and write';
+        }
+        if (lower.contains('saml') || lower.contains('sso')) {
+          return '组织要求 SSO 授权：在 token 设置页点 Authorize，完成单点登录授权';
+        }
+        return '没有写权限：classic token 要勾选 repo；'
+            'fine-grained token 要在该仓库上给 Contents: Read and write';
+      case 404:
+        return '仓库不存在，或这个 Token 看不到它：检查 owner/repo 拼写，'
+            '并确认 token 授权范围包含这个仓库';
+      case 409:
+      case 422:
+        return '远端刚被别的设备改过，请再同步一次';
+      default:
+        return _extractMessage(body);
+    }
   }
 
   String _extractMessage(String body) {
@@ -134,8 +159,8 @@ class GitHubClient {
 
   // ───────────────────────────── 读 ─────────────────────────────
 
-  Future<RepoInfo> repoInfo() async {
-    final json = await _send('GET', '/repos/$owner/$repo');
+  Future<RepoInfo> repoInfo({void Function(Map<String, String> headers)? onHeaders}) async {
+    final json = await _send('GET', '/repos/$owner/$repo', onHeaders: onHeaders);
     return RepoInfo(
       fullName: '${json['full_name'] ?? '$owner/$repo'}',
       defaultBranch: '${json['default_branch'] ?? 'main'}',
