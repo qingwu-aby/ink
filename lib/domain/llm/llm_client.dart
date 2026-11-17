@@ -19,12 +19,32 @@ class LlmConfig {
     required this.baseUrl,
     required this.model,
     required this.apiKey,
+    this.modelApi = LlmApi.chat,
+    this.apiBaseUrl = '',
   });
 
   final String provider;
   final String baseUrl;
   final String model;
   final String apiKey;
+
+  /// 这个模型走的协议族（由模型目录得出，默认 chat-completions）
+  final LlmApi modelApi;
+
+  /// 该协议族的实际地址（目录里带；为空时按网关约定推导）
+  final String apiBaseUrl;
+
+  /// 真正要打的地方：目录给了就用目录的，否则按 opencode 网关的路径约定推导
+  String get resolvedBaseUrl {
+    final fromCatalog = apiBaseUrl.trim();
+    if (fromCatalog.isNotEmpty) return fromCatalog.replaceAll(RegExp(r'/+$'), '');
+    final root = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    return switch (modelApi) {
+      LlmApi.messages => root.replaceFirst('/openai/v1', '/anthropic/v1'),
+      LlmApi.generateContent => root.replaceFirst('/openai/v1', '/google/v1beta'),
+      _ => root,
+    };
+  }
 
   bool get isReady => apiKey.trim().isNotEmpty && baseUrl.trim().isNotEmpty && model.trim().isNotEmpty;
 
@@ -62,14 +82,180 @@ class LlmConfig {
 
   static String defaultModelOf(String provider) => presets[provider]?.defaultModel ?? '';
 
-  LlmConfig copyWith({String? provider, String? baseUrl, String? model, String? apiKey}) => LlmConfig(
+  LlmConfig copyWith({
+    String? provider,
+    String? baseUrl,
+    String? model,
+    String? apiKey,
+    LlmApi? modelApi,
+    String? apiBaseUrl,
+  }) =>
+      LlmConfig(
         provider: provider ?? this.provider,
         baseUrl: baseUrl ?? this.baseUrl,
         model: model ?? this.model,
         apiKey: apiKey ?? this.apiKey,
+        modelApi: modelApi ?? this.modelApi,
+        apiBaseUrl: apiBaseUrl ?? this.apiBaseUrl,
       );
 
   static const empty = LlmConfig(provider: 'deepseek', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', apiKey: '');
+}
+
+/// 网关的四种协议族。每个模型只支持其中一种。
+enum LlmApi {
+  chat('chat-completions'),
+  responses('responses'),
+  messages('messages'),
+  generateContent('generate-content');
+
+  const LlmApi(this.key);
+  final String key;
+
+  static LlmApi parse(String? value) {
+    final needle = (value ?? '').trim();
+    for (final api in LlmApi.values) {
+      if (api.key == needle) return api;
+    }
+    return LlmApi.chat;
+  }
+
+  bool get isJsonMode => this == LlmApi.chat;
+}
+
+/// 按协议族拼请求、取正文。抽成纯函数，方便单测覆盖四种协议。
+class LlmWire {
+  const LlmWire._();
+
+  static Uri uri(LlmConfig config) {
+    final base = config.resolvedBaseUrl;
+    return switch (config.modelApi) {
+      LlmApi.chat => Uri.parse('$base/chat/completions'),
+      LlmApi.responses => Uri.parse('$base/responses'),
+      LlmApi.messages => Uri.parse('$base/messages'),
+      LlmApi.generateContent =>
+        Uri.parse('$base/models/${Uri.encodeComponent(config.model.trim())}:generateContent'),
+    };
+  }
+
+  static Map<String, String> headers(LlmConfig config) => {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ${config.apiKey.trim()}',
+        if (config.modelApi == LlmApi.messages) 'anthropic-version': '2023-06-01',
+      };
+
+  static String body({
+    required LlmConfig config,
+    required String system,
+    required String user,
+    int maxTokens = 2600,
+    double temperature = 0.2,
+  }) {
+    final model = config.model.trim();
+    final payload = switch (config.modelApi) {
+      LlmApi.chat => {
+          'model': model,
+          'temperature': temperature,
+          'max_tokens': maxTokens,
+          'response_format': {'type': 'json_object'},
+          'messages': [
+            {'role': 'system', 'content': system},
+            {'role': 'user', 'content': user},
+          ],
+        },
+      LlmApi.responses => {
+          'model': model,
+          'instructions': system,
+          'max_output_tokens': maxTokens,
+          'input': [
+            {
+              'role': 'user',
+              'content': [
+                {'type': 'input_text', 'text': user},
+              ],
+            },
+          ],
+        },
+      LlmApi.messages => {
+          'model': model,
+          'max_tokens': maxTokens,
+          'temperature': temperature,
+          'system': system,
+          'messages': [
+            {'role': 'user', 'content': user},
+          ],
+        },
+      LlmApi.generateContent => {
+          'systemInstruction': {
+            'parts': [
+              {'text': system},
+            ],
+          },
+          'contents': [
+            {
+              'role': 'user',
+              'parts': [
+                {'text': user},
+              ],
+            },
+          ],
+          'generationConfig': {'temperature': temperature, 'maxOutputTokens': maxTokens},
+        },
+    };
+    return jsonEncode(payload);
+  }
+
+  /// 从四种返回结构里抠出正文。
+  static String text(LlmConfig config, Map<String, dynamic> decoded) {
+    switch (config.modelApi) {
+      case LlmApi.chat:
+        final choices = decoded['choices'];
+        if (choices is! List || choices.isEmpty) return '';
+        final message = choices.first is Map ? (choices.first as Map)['message'] : null;
+        return message is Map ? "${message['content'] ?? ''}" : '';
+      case LlmApi.responses:
+        final out = decoded['output'];
+        if (out is! List) return '';
+        final buffer = StringBuffer();
+        for (final item in out) {
+          if (item is! Map) continue;
+          final content = item['content'];
+          if (content is! List) continue;
+          for (final part in content) {
+            if (part is! Map) continue;
+            final text = part['text'];
+            if (text is String && text.isNotEmpty) buffer.write(text);
+          }
+        }
+        return buffer.toString();
+      case LlmApi.messages:
+        final content = decoded['content'];
+        if (content is! List) return '';
+        final buffer = StringBuffer();
+        for (final part in content) {
+          if (part is! Map || part['type'] != 'text') continue;
+          final text = part['text'];
+          if (text is String) buffer.write(text);
+        }
+        return buffer.toString();
+      case LlmApi.generateContent:
+        final candidates = decoded['candidates'];
+        if (candidates is! List || candidates.isEmpty) return '';
+        final first = candidates.first;
+        if (first is! Map) return '';
+        final content = first['content'];
+        if (content is! Map) return '';
+        final parts = content['parts'];
+        if (parts is! List) return '';
+        final buffer = StringBuffer();
+        for (final part in parts) {
+          if (part is! Map) continue;
+          final text = part['text'];
+          if (text is String) buffer.write(text);
+        }
+        return buffer.toString();
+    }
+  }
 }
 
 /// 一个服务商的预置：地址、默认模型、可选模型。
@@ -92,7 +278,27 @@ class LlmPreset {
   /// 能拉到实时模型列表的地址
   final String? modelsUrl;
 
-  /// 我们只走 /chat/completions，所以只保留这一族模型。
+  /// 解析网关的模型目录：保留每个模型支持的协议族与该族地址。
+  Map<String, Map<String, String>> parseCatalog(String body) {
+    final decoded = jsonDecode(body);
+    final data = decoded is Map ? decoded['data'] : null;
+    if (data is! List) return const {};
+    final out = <String, Map<String, String>>{};
+    for (final raw in data) {
+      if (raw is! Map) continue;
+      final id = raw['id'];
+      if (id is! String || id.isEmpty) continue;
+      final api = raw['api'];
+      if (api is! Map || api.isEmpty) continue;
+      final family = api.keys.first;
+      final config = api[family];
+      final baseUrl = config is Map ? '${config['base_url'] ?? ''}' : '';
+      out[id] = {'api': '$family', 'baseUrl': baseUrl};
+    }
+    return out;
+  }
+
+  /// 列出目录里的模型（四种协议族都支持了，所以这里不再过滤）。
   List<LlmModel> parseModels(String body) {
     final decoded = jsonDecode(body);
     final data = decoded is Map ? decoded['data'] : null;
@@ -102,11 +308,10 @@ class LlmPreset {
       if (raw is! Map) continue;
       final id = raw['id'];
       if (id is! String || id.isEmpty) continue;
-      // 只留 chat-completions 家族，别的家族我们的客户端调不通
       final api = raw['api'];
-      if (api is Map && !api.containsKey('chat-completions')) continue;
+      if (api is! Map || api.isEmpty) continue;
       final name = raw['name'] is String ? raw['name'] as String : id;
-      out.add(LlmModel(id: id, name: name));
+      out.add(LlmModel(id: id, name: name, api: '${api.keys.first}'));
     }
     out.sort((a, b) => a.id.compareTo(b.id));
     return out;
@@ -114,9 +319,12 @@ class LlmPreset {
 }
 
 class LlmModel {
-  const LlmModel({required this.id, required this.name});
+  const LlmModel({required this.id, required this.name, this.api = 'chat-completions'});
   final String id;
   final String name;
+
+  /// 这个模型走的协议族（chat-completions / responses / messages / generate-content）
+  final String api;
 }
 
 class AiEntityDraft {
@@ -247,26 +455,20 @@ class LlmClient {
     if (!config.isReady) {
       throw LlmException('还没有配置 API Key / 模型，先去「设置 → AI 助手」填一下。');
     }
-    final base = config.baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
-    final uri = Uri.parse('$base/chat/completions');
-    final body = jsonEncode({
-      'model': config.model.trim(),
-      'temperature': temperature,
-      'max_tokens': maxTokens,
-      'response_format': {'type': 'json_object'},
-      'messages': [
-        {'role': 'system', 'content': system},
-        {'role': 'user', 'content': user},
-      ],
-    });
+    // 按模型声明的协议族选端点：chat / responses / messages / generate-content
+    final uri = LlmWire.uri(config);
+    final body = LlmWire.body(
+      config: config,
+      system: system,
+      user: user,
+      maxTokens: maxTokens,
+      temperature: temperature,
+    );
 
     http.Response response;
     try {
       response = await _client
-          .post(uri, headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ${config.apiKey.trim()}',
-          }, body: body)
+          .post(uri, headers: LlmWire.headers(config), body: body)
           .timeout(const Duration(seconds: 90));
     } on TimeoutException {
       throw LlmException('请求超时（90 秒）。检查网络或换一个模型。');
@@ -287,10 +489,11 @@ class LlmClient {
     }
     if (decoded is! Map) throw LlmException('返回结构异常。');
 
-    final choices = decoded['choices'];
-    if (choices is! List || choices.isEmpty) throw LlmException('返回里没有 choices。');
-    final message = _asMap(_asMap(choices.first)['message']);
-    final content = '${message['content'] ?? ''}';
+    final content = LlmWire.text(config, _asMap(decoded));
+    if (content.trim().isEmpty) {
+      throw LlmException('模型没有返回内容（协议族 ${config.modelApi.key}）。'
+          '如果模型 ID 是手填的，点「刷新列表」选一次，让它认对协议。');
+    }
 
     final parsed = JsonX.objectFrom(content);
     if (parsed == null) {

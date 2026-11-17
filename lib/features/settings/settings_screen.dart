@@ -23,6 +23,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   bool _enabled = false;
   List<String> _models = const [];
+  List<LlmModel> _allModels = const [];
   bool _refreshingModels = false;
   String _provider = 'deepseek';
   bool _initialised = false;
@@ -145,7 +146,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           selected: _model.text == model,
                           onTap: () => setState(() => _model.text = model),
                         ),
-                      if (_provider == 'opencodego')
+                      if (_provider == 'opencodego') ...[
                         TextButton.icon(
                           onPressed: _refreshingModels ? null : _refreshModels,
                           icon: _refreshingModels
@@ -157,6 +158,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               : const Icon(Icons.refresh, size: 16),
                           label: const Text('刷新列表', style: TextStyle(fontSize: 12)),
                         ),
+                        TextButton.icon(
+                          onPressed: _allModels.isEmpty ? null : _pickModel,
+                          icon: const Icon(Icons.list_alt, size: 16),
+                          label: Text(
+                            _allModels.isEmpty ? '全部模型' : '全部模型（${_allModels.length}）',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],
@@ -297,7 +307,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已保存')));
   }
 
-  /// 拉一次实时模型列表：只保留我们客户端能调的 chat-completions 家族。
+  /// 全部模型选择器：带搜索，右侧标注该模型走的协议族。
+  Future<void> _pickModel() async {
+    final picked = await showModalBottomSheet<LlmModel>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _ModelPicker(models: _allModels),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _model.text = picked.id);
+  }
+
+  /// 拉一次实时模型列表（四种协议族都支持，全部可选）。
   Future<void> _refreshModels() async {
     final url = LlmConfig.presets[_provider]?.modelsUrl;
     if (url == null) return;
@@ -307,15 +328,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (response.statusCode != 200) {
         throw LlmException('拉取模型列表失败（HTTP ${response.statusCode}）');
       }
-      final models = LlmConfig.presets[_provider]!.parseModels(response.body);
-      if (models.isEmpty) throw LlmException('这个服务商没有可用的 chat-completions 模型');
+      final preset = LlmConfig.presets[_provider]!;
+      final catalog = preset.parseCatalog(response.body);
+      if (catalog.isEmpty) throw LlmException('这个服务商没有可用的模型');
+      final models = preset.parseModels(response.body);
+      await ref.read(aiConfigProvider.notifier).saveCatalog(catalog);
       if (!mounted) return;
-      setState(() {
-        _models = [for (final model in models) model.id];
-        if (!_models.contains(_model.text)) _model.text = _models.first;
-      });
+      setState(() => _allModels = models);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已刷新：${_models.length} 个模型可用')),
+        SnackBar(content: Text('已刷新：${models.length} 个模型可用，点「全部模型」可选')),
       );
     } catch (error) {
       if (!mounted) return;
@@ -337,7 +358,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       apiKey: _key.text.trim(),
     );
     try {
-      await LlmClient(config).extract(
+      final resolved = await ref.read(aiConfigProvider.notifier).resolve(config);
+      await LlmClient(resolved).extract(
         text: '沈砚之推开听雨楼的门，苏鸢正在算账。',
         knownNames: const [],
       );
@@ -424,6 +446,83 @@ class _Choice extends StatelessWidget {
             fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 全部模型列表：带搜索，右侧标注协议族（不同族请求走不同端点）。
+class _ModelPicker extends StatefulWidget {
+  const _ModelPicker({required this.models});
+
+  final List<LlmModel> models;
+
+  @override
+  State<_ModelPicker> createState() => _ModelPickerState();
+}
+
+class _ModelPickerState extends State<_ModelPicker> {
+  String _query = '';
+
+  static String _label(String api) => switch (api) {
+        'responses' => 'Responses',
+        'messages' => 'Messages',
+        'generate-content' => 'Gemini',
+        _ => 'Chat',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final keyword = _query.trim().toLowerCase();
+    final visible = keyword.isEmpty
+        ? widget.models
+        : [
+            for (final model in widget.models)
+              if (model.id.toLowerCase().contains(keyword) ||
+                  model.name.toLowerCase().contains(keyword))
+                model,
+          ];
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.8,
+      builder: (context, controller) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: TextField(
+              autofocus: true,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search, size: 18),
+                hintText: '搜模型，例如 kimi / gpt / claude',
+              ),
+              onChanged: (value) => setState(() => _query = value),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              controller: controller,
+              itemCount: visible.length,
+              itemBuilder: (context, index) {
+                final model = visible[index];
+                return ListTile(
+                  dense: true,
+                  title: Text(model.id, style: context.texts.bodyMedium),
+                  subtitle: Text(model.name, style: context.texts.labelSmall),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: context.sunken,
+                      borderRadius: BorderRadius.circular(Radii.xs),
+                    ),
+                    child: Text(_label(model.api), style: const TextStyle(fontSize: 10.5)),
+                  ),
+                  onTap: () => Navigator.of(context).pop(model),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

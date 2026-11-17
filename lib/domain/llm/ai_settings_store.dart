@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../data/db/app_database.dart';
@@ -16,6 +18,7 @@ class AiSettingsStore {
   static const _kBaseUrl = 'ai.baseUrl';
   static const _kModel = 'ai.model';
   static const _kKeychainKey = 'mopu_llm_api_key';
+  static const _kCatalog = 'ai.catalog';
 
   Future<bool> isEnabled() async => (await _db.getSetting(_kEnabled)) == '1';
 
@@ -23,12 +26,50 @@ class AiSettingsStore {
     final provider = await _db.getSetting(_kProvider) ?? 'deepseek';
     final baseUrl = await _db.getSetting(_kBaseUrl) ?? LlmConfig.presets[provider]!.baseUrl;
     final model = await _db.getSetting(_kModel) ?? LlmConfig.presets[provider]!.defaultModel;
-    return LlmConfig(
+    final config = LlmConfig(
       provider: provider,
       baseUrl: baseUrl,
       model: model,
       apiKey: await readKey() ?? '',
     );
+    return resolve(config);
+  }
+
+  /// 用模型目录补上「这个模型走哪个协议族、打哪个地址」。
+  /// 目录里没有（比如手填的 ID）就按 chat-completions 处理。
+  Future<LlmConfig> resolve(LlmConfig config) async {
+    final catalog = await loadCatalog();
+    final entry = catalog[config.model.trim()];
+    if (entry == null) return config;
+    return config.copyWith(
+      modelApi: LlmApi.parse(entry['api']),
+      apiBaseUrl: '${entry['baseUrl'] ?? ''}',
+    );
+  }
+
+  Future<Map<String, Map<String, String>>> loadCatalog() async {
+    final raw = await _db.getSetting(_kCatalog);
+    if (raw == null || raw.isEmpty) return const {};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return const {};
+      final out = <String, Map<String, String>>{};
+      decoded.forEach((key, value) {
+        if (value is Map) {
+          out['$key'] = {
+            'api': '${value['api'] ?? ''}',
+            'baseUrl': '${value['baseUrl'] ?? ''}',
+          };
+        }
+      });
+      return out;
+    } on FormatException {
+      return const {};
+    }
+  }
+
+  Future<void> saveCatalog(Map<String, Map<String, String>> catalog) async {
+    await _db.setSetting(_kCatalog, jsonEncode(catalog));
   }
 
   Future<void> save({required bool enabled, required LlmConfig config}) async {

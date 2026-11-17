@@ -193,6 +193,16 @@ class AiConfigNotifier extends AsyncNotifier<AiConfigState> {
     ref.invalidateSelf();
     await future;
   }
+
+  /// 记住模型目录（哪个模型走哪种协议），之后手填 ID 也能认对协议。
+  Future<void> saveCatalog(Map<String, Map<String, String>> catalog) async {
+    await ref.read(aiStoreProvider).saveCatalog(catalog);
+    ref.invalidateSelf();
+    await future;
+  }
+
+  /// 把「模型 → 协议族/地址」补到一份临时配置上（测试连接时用）。
+  Future<LlmConfig> resolve(LlmConfig config) => ref.read(aiStoreProvider).resolve(config);
 }
 
 final aiConfigProvider = AsyncNotifierProvider<AiConfigNotifier, AiConfigState>(AiConfigNotifier.new);

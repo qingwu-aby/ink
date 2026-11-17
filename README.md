@@ -90,8 +90,19 @@ iOS / macOS 是铺满的红底方图，交给系统裁形。`.logo/build_logo.py
 | **OpenCode Go** | `https://opencode.ai/inference/openai/v1` | `glm-5.3` | **只填 Key**，模型可点选，也能点「刷新列表」拉实时清单 |
 
 选 OpenCode Go 后，模型是一排可点的 chip（`glm-5.3` / `kimi-k3` / `minimax-m3` / `deepseek-v4.1-flash` …）；
-「刷新列表」会打 `https://opencode.ai/inference/v1/models`，**只保留 chat-completions 家族**——
-因为我们走的是 `/chat/completions`，GPT/Claude/Gemini 那几个家族的模型调不通，干脆不显示。
+点「刷新列表」会打 `https://opencode.ai/inference/v1/models`，把**全部 86 个模型**连协议族一起记下来，
+之后点「全部模型」可以搜索选择，右侧标着它走哪种协议。
+
+网关其实有四套协议，每个模型只认其中一种，我们四种都实现了：
+
+| 协议族 | 端点 | 代表模型 |
+|---|---|---|
+| `chat-completions` | `/inference/openai/v1/chat/completions` | GLM / Kimi / MiniMax |
+| `responses` | `/inference/openai/v1/responses` | GPT 系列 |
+| `messages` | `/inference/anthropic/v1/messages` | Claude / Qwen 系列 |
+| `generate-content` | `/inference/google/v1beta/models/<model>:generateContent` | Gemini 系列 |
+
+选完模型后，客户端按目录里记的协议族自动挑端点，你不需要关心；目录里没有的 ID（手填的）按 chat 处理。
 
 API Key 存在系统钥匙串（取不到时退到本地库），除你主动触发的请求外不会外发。
 

@@ -23,7 +23,7 @@ void main() {
     }
   });
 
-  test('模型列表只保留 chat-completions 家族', () {
+  test('模型列表保留全部协议族，并标注每个模型走哪种', () {
     final preset = LlmConfig.presets['opencodego']!;
     final body = jsonEncode({
       'data': [
@@ -34,7 +34,10 @@ void main() {
       ],
     });
     final models = preset.parseModels(body);
-    expect(models.map((m) => m.id).toList(), ['a-chat', 'c-chat']);
+    // 四种协议都实现了，所以不再过滤；空 id 跳过
+    expect(models.map((m) => m.id).toList(), ['a-chat', 'b-responses', 'c-chat']);
+    expect(models.firstWhere((m) => m.id == 'b-responses').api, 'responses');
+    expect(models.firstWhere((m) => m.id == 'a-chat').api, 'chat-completions');
   });
 
   test('请求地址是 baseUrl + /chat/completions', () {
