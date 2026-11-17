@@ -6,6 +6,7 @@ import '../domain/lint/lint_engine.dart';
 import '../domain/llm/ai_settings_store.dart';
 import '../domain/llm/llm_client.dart';
 import '../domain/suggest/suggestion_engine.dart';
+import '../domain/sync/sync_settings.dart';
 import '../domain/text/entity_matcher.dart';
 
 /// 由 main() 覆盖为真实实例，避免重复打开数据库。
@@ -117,12 +118,16 @@ class SyncStatus {
     required this.autoDaily,
     this.lastSyncAt,
     this.lastError,
+    this.lastOutcome,
   });
 
   final bool configured;
   final bool autoDaily;
   final DateTime? lastSyncAt;
   final String? lastError;
+
+  /// 上一次同步的结果，从库里读出来，页面刷新/重进都不会丢
+  final SyncOutcome? lastOutcome;
 
   static const unknown = SyncStatus(configured: false, autoDaily: true);
 
@@ -139,6 +144,7 @@ final syncStatusProvider = StreamProvider<SyncStatus>((ref) {
       autoDaily: map['sync.autoDaily'] != '0',
       lastSyncAt: DateTime.tryParse(map['sync.lastAt'] ?? ''),
       lastError: map['sync.lastAutoError'],
+      lastOutcome: SyncOutcome.decode(map['sync.lastResult']),
     );
   });
 });

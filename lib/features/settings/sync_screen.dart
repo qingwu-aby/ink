@@ -28,8 +28,6 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   bool _hasToken = false;
   String? _status;
   bool _statusIsError = false;
-  SyncOutcome? _lastOutcome;
-  DateTime? _lastSyncAt;
   RepoInfo? _repoInfo;
   bool _autoDaily = true;
   String? _autoError;
@@ -42,8 +40,6 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
   Future<void> _load() async {
     final settings = await _store.load();
-    final lastAt = await _store.lastSyncAt();
-    final raw = await _store.lastResult();
     final autoDaily = await _store.autoDaily();
     final autoError = await _store.lastAutoError();
     if (!mounted) return;
@@ -52,8 +48,6 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       _branch.text = settings.branch;
       _hasToken = settings.token.isNotEmpty;
       _cachedToken = settings.token;
-      _lastSyncAt = lastAt;
-      _lastOutcome = SyncOutcome.decode(raw);
       _autoDaily = autoDaily;
       _autoError = autoError;
       _loading = false;
@@ -169,8 +163,6 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
       if (!mounted) return;
       setState(() {
-        _lastOutcome = outcome;
-        _lastSyncAt = outcome.at;
         _status = outcome.summary;
         _statusIsError = false;
       });
@@ -195,6 +187,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final persisted = ref.watch(syncStatusProvider).value ?? SyncStatus.unknown;
     return Scaffold(
       appBar: AppBar(title: const Text('GitHub 同步')),
       body: _loading
@@ -329,10 +322,18 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                 const SizedBox(height: 14),
                 SectionCard(
                   title: '上次同步',
-                  subtitle: _lastSyncAt == null
+                  subtitle: persisted.lastSyncAt == null
                       ? '还没有同步过'
-                      : _formatTime(_lastSyncAt!) + (_lastSyncAt!.isUtc ? ' (UTC)' : ''),
-                  child: _OutcomeView(outcome: _lastOutcome),
+                      : _formatTime(persisted.lastSyncAt!.toLocal()),
+                  action: persisted.lastSyncAt == null
+                      ? null
+                      : TagPill(
+                          label: persisted.hasError ? '有错误' : '已同步',
+                          color: persisted.hasError
+                              ? Theme.of(context).colorScheme.error
+                              : Mo.jade,
+                        ),
+                  child: _OutcomeView(outcome: persisted.lastOutcome),
                 ),
                 const SizedBox(height: 14),
                 SectionCard(
