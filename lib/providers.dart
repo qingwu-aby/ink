@@ -118,6 +118,7 @@ class SyncStatus {
     required this.autoDaily,
     this.lastSyncAt,
     this.lastError,
+    this.lastErrorAt,
     this.lastOutcome,
   });
 
@@ -125,13 +126,26 @@ class SyncStatus {
   final bool autoDaily;
   final DateTime? lastSyncAt;
   final String? lastError;
+  final DateTime? lastErrorAt;
 
   /// 上一次同步的结果，从库里读出来，页面刷新/重进都不会丢
   final SyncOutcome? lastOutcome;
 
   static const unknown = SyncStatus(configured: false, autoDaily: true);
 
-  bool get hasError => lastError != null && lastError!.isNotEmpty;
+  /// 只有「错误发生在上一次成功同步之后」才算数。
+  ///
+  /// 之前只看有没有错误文本，导致一次失败之后即使同步成功了，
+  /// 书架和同步页也一直显示「上次同步失败」。
+  bool get hasError {
+    final message = lastError;
+    if (message == null || message.isEmpty) return false;
+    final synced = lastSyncAt;
+    if (synced == null) return true;
+    final failedAt = lastErrorAt;
+    if (failedAt == null) return false; // 旧数据没有时间戳，按已过期处理
+    return failedAt.isAfter(synced);
+  }
 }
 
 final syncStatusProvider = StreamProvider<SyncStatus>((ref) {
@@ -144,6 +158,7 @@ final syncStatusProvider = StreamProvider<SyncStatus>((ref) {
       autoDaily: map['sync.autoDaily'] != '0',
       lastSyncAt: DateTime.tryParse(map['sync.lastAt'] ?? ''),
       lastError: map['sync.lastAutoError'],
+      lastErrorAt: DateTime.tryParse(map['sync.lastAutoErrorAt'] ?? ''),
       lastOutcome: SyncOutcome.decode(map['sync.lastResult']),
     );
   });

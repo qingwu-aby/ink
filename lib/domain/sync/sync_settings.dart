@@ -49,6 +49,7 @@ class SyncSettingsStore {
   static const _kAutoDaily = 'sync.autoDaily';
   static const _kLastAttempt = 'sync.lastAttemptAt';
   static const _kAutoError = 'sync.lastAutoError';
+  static const _kAutoErrorAt = 'sync.lastAutoErrorAt';
   static const _keychainKey = 'mopu_sync_token';
 
   Future<SyncSettings> load() async {
@@ -73,6 +74,8 @@ class SyncSettingsStore {
   Future<void> markSynced(DateTime at, String summary) async {
     await _db.setSetting(_kLastAt, at.toUtc().toIso8601String());
     await _db.setSetting(_kLastResult, summary);
+    // 成功一次就把上一次的失败标记清掉，否则「上次同步失败」会一直挂着
+    await markAutoError(null);
   }
 
   Future<String?> lastResult() => _db.getSetting(_kLastResult);
@@ -93,11 +96,16 @@ class SyncSettingsStore {
 
   Future<String?> lastAutoError() => _db.getSetting(_kAutoError);
 
-  Future<void> markAutoError(String? message) async {
+  Future<void> markAutoError(String? message, {DateTime? at}) async {
     if (message == null || message.isEmpty) {
       await _db.removeSetting(_kAutoError);
+      await _db.removeSetting(_kAutoErrorAt);
     } else {
       await _db.setSetting(_kAutoError, message);
+      await _db.setSetting(
+        _kAutoErrorAt,
+        (at ?? DateTime.now()).toUtc().toIso8601String(),
+      );
     }
   }
 

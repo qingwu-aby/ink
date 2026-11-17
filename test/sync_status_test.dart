@@ -94,4 +94,44 @@ void main() {
     expect(status.configured, isTrue);
     expect(status.lastError, contains('SocketException'));
   });
+
+  test('失败之后又同步成功 → 错误标记必须消掉', () async {
+    final store = SyncSettingsStore(db);
+    await store.save(const SyncSettings(repository: 'o/r', branch: 'main', token: 't'));
+
+    // 先失败一次
+    await store.markAutoError('连不上 GitHub：SocketException');
+    var status = await watcher.waitFor((s) => s.hasError);
+    expect(status.hasError, isTrue);
+
+    // 再成功一次
+    final outcome = SyncOutcome(
+      created: const [],
+      updated: const [],
+      removed: const [],
+      skipped: const [],
+      pushed: true,
+      branch: 'main',
+      commitSha: 'deadbeef',
+      at: DateTime.now().toUtc(),
+      notes: const [],
+    );
+    await store.markSynced(outcome.at, outcome.summary);
+    await db.setSetting('sync.lastResult', outcome.encode());
+
+    status = await watcher.waitFor((s) => !s.hasError && s.lastOutcome != null);
+    expect(status.lastError, anyOf(isNull, isEmpty));
+    expect(status.lastSyncAt, isNotNull);
+  });
+
+  test('旧数据：只有错误文本没有时间戳，且已同步过 → 不当成错误', () async {
+    final store = SyncSettingsStore(db);
+    await store.save(const SyncSettings(repository: 'o/r', branch: 'main', token: 't'));
+    // 模拟上一版本留下的数据：有错误文本、有成功时间，但没有错误时间
+    await db.setSetting('sync.lastAt', DateTime.utc(2026, 11, 17, 2).toIso8601String());
+    await db.setSetting('sync.lastAutoError', '连不上 GitHub：SocketException');
+
+    final status = await watcher.waitFor((s) => s.lastSyncAt != null);
+    expect(status.hasError, isFalse);
+  });
 }
