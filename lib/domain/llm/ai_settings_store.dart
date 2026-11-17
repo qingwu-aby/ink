@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -19,6 +20,7 @@ class AiSettingsStore {
   static const _kModel = 'ai.model';
   static const _kKeychainKey = 'mopu_llm_api_key';
   static const _kCatalog = 'ai.catalog';
+  static const _kSession = 'ai.sessionId';
 
   Future<bool> isEnabled() async => (await _db.getSetting(_kEnabled)) == '1';
 
@@ -35,16 +37,42 @@ class AiSettingsStore {
     return resolve(config);
   }
 
-  /// 用模型目录补上「这个模型走哪个协议族、打哪个地址」。
-  /// 目录里没有（比如手填的 ID）就按 chat-completions 处理。
+  /// 补上「这个模型走哪个协议族、打哪个地址」，以及 Go 网关要的路由头。
   Future<LlmConfig> resolve(LlmConfig config) async {
+    final session = await _ensureSession();
     final catalog = await loadCatalog();
     final entry = catalog[config.model.trim()];
-    if (entry == null) return config;
+    if (entry == null) {
+      return config.copyWith(sessionId: session);
+    }
     return config.copyWith(
       modelApi: LlmApi.parse(entry['api']),
-      apiBaseUrl: '${entry['baseUrl'] ?? ''}',
+      // 目录里的地址可能属于别的网关，只在同一网关内才采用
+      apiBaseUrl: _sameGateway(config.baseUrl, '${entry['baseUrl'] ?? ''}')
+          ? '${entry['baseUrl'] ?? ''}'
+          : '',
+      sessionId: session,
     );
+  }
+
+  /// Go 网关要求每次请求带一个稳定的 x-opencode-session；装一次生成一次即可。
+  Future<String> _ensureSession() async {
+    final existing = await _db.getSetting(_kSession);
+    if (existing != null && existing.isNotEmpty) return existing;
+    final random = Random.secure();
+    final id = List.generate(16, (_) => random.nextInt(256))
+        .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+        .join();
+    final value = 'kedao-$id';
+    await _db.setSetting(_kSession, value);
+    return value;
+  }
+
+  /// 判断目录里的地址和当前配置是不是同一个网关（都指向 opencode.ai 的 Go 或通用入口）。
+  static bool _sameGateway(String configured, String fromCatalog) {
+    if (fromCatalog.isEmpty) return false;
+    bool isGo(String url) => url.contains('/inference/go/');
+    return isGo(configured) == isGo(fromCatalog);
   }
 
   Future<Map<String, Map<String, String>>> loadCatalog() async {

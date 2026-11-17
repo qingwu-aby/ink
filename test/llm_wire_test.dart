@@ -49,6 +49,24 @@ void main() {
     });
   });
 
+  group('路由头', () {
+    test('Go 网关带 x-opencode-session', () {
+      final headers = LlmWire.headers(cfg(LlmApi.chat).copyWith(sessionId: 'ses-1'));
+      expect(headers['x-opencode-session'], 'ses-1');
+    });
+
+    test('通用网关不带这个头', () {
+      final headers = LlmWire.headers(LlmConfig(
+        provider: 'opencode',
+        baseUrl: 'https://opencode.ai/inference/openai/v1',
+        model: 'glm-5.3',
+        apiKey: 'k',
+        sessionId: 'ses-1',
+      ));
+      expect(headers.containsKey('x-opencode-session'), isFalse);
+    });
+  });
+
   group('请求体', () {
     test('chat 带 response_format', () {
       final body = jsonDecode(LlmWire.body(config: cfg(LlmApi.chat), system: 'S', user: 'U'));
@@ -149,10 +167,10 @@ void main() {
   group('模型目录', () {
     const body = '''
 {"data":[
- {"id":"m-chat","name":"M Chat","api":{"chat-completions":{"base_url":"B1"}}},
- {"id":"m-resp","name":"M Resp","api":{"responses":{"base_url":"B2"}}},
- {"id":"m-msg","name":"M Msg","api":{"messages":{"base_url":"B3"}}},
- {"id":"m-gem","name":"M Gem","api":{"generate-content":{"base_url":"B4"}}},
+ {"id":"m-chat","name":"M Chat","api":{"chat-completions":{"base_url":"https://opencode.ai/inference/go/openai/v1"}}},
+ {"id":"m-resp","name":"M Resp","api":{"responses":{"base_url":"https://opencode.ai/inference/go/openai/v1"}}},
+ {"id":"m-msg","name":"M Msg","api":{"messages":{"base_url":"https://opencode.ai/inference/go/anthropic/v1"}}},
+ {"id":"m-gem","name":"M Gem","api":{"generate-content":{"base_url":"https://opencode.ai/inference/go/google/v1beta"}}},
  {"id":"no-api","name":"No API"}
 ]}''';
 
@@ -161,7 +179,7 @@ void main() {
       final catalog = preset.parseCatalog(body);
       expect(catalog.length, 4);
       expect(catalog['m-resp']!['api'], 'responses');
-      expect(catalog['m-msg']!['baseUrl'], 'B3');
+      expect(catalog['m-msg']!['baseUrl'], 'https://opencode.ai/inference/go/anthropic/v1');
       expect(catalog.containsKey('no-api'), isFalse);
 
       final models = preset.parseModels(body);
@@ -181,7 +199,7 @@ void main() {
         apiKey: 'k',
       ));
       expect(resolved.modelApi, LlmApi.messages);
-      expect(resolved.apiBaseUrl, 'B3');
+      expect(resolved.apiBaseUrl, 'https://opencode.ai/inference/go/anthropic/v1');
 
       // 目录里没有的模型：退回 chat，不炸
       final unknown = await store.resolve(LlmConfig(

@@ -87,11 +87,17 @@ iOS / macOS 是铺满的红底方图，交给系统裁形。`.logo/build_logo.py
 |---|---|---|---|
 | DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` | 便宜、听话，适合抽取 |
 | OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` | |
-| **OpenCode Go** | `https://opencode.ai/inference/openai/v1` | `glm-5.3` | **只填 Key**，模型可点选，也能点「刷新列表」拉实时清单 |
+| **OpenCode Go** | `https://opencode.ai/inference/go/openai/v1` | `glm-5.3` | **只填 Key**，Go 订阅专属网关，自动带 `x-opencode-session` |
+| **OpenCode 按量付费** | `https://opencode.ai/inference/openai/v1` | `glm-5.3` | 余额计费入口，Go 订阅不覆盖这个网关 |
 
 选 OpenCode Go 后，模型是一排可点的 chip（`glm-5.3` / `kimi-k3` / `minimax-m3` / `deepseek-v4.1-flash` …）；
 点「刷新列表」会打 `https://opencode.ai/inference/v1/models`，把**全部 86 个模型**连协议族一起记下来，
 之后点「全部模型」可以搜索选择，右侧标着它走哪种协议。
+
+> ⚠️ **Go 和按量付费是两个网关**，各有一份模型清单（Go 32 个 / 通用 86 个），
+> 两边互不覆盖：用 Go 的 Key 打通用网关会按量计费，余额不足就
+> `402 Account.InsufficientFunds`——报错原文会写「OpenCode Go covers only requests to
+> the OpenCode Go provider」。Go 网关还要求每次请求带 `x-opencode-session`，App 会自动生成并复用。
 
 网关其实有四套协议，每个模型只认其中一种，我们四种都实现了：
 

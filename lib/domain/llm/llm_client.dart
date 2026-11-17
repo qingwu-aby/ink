@@ -21,6 +21,7 @@ class LlmConfig {
     required this.apiKey,
     this.modelApi = LlmApi.chat,
     this.apiBaseUrl = '',
+    this.sessionId = '',
   });
 
   final String provider;
@@ -33,6 +34,13 @@ class LlmConfig {
 
   /// 该协议族的实际地址（目录里带；为空时按网关约定推导）
   final String apiBaseUrl;
+
+  /// OpenCode Go 网关要求的路由头值（稳定复用上下文缓存）
+  final String sessionId;
+
+  /// Go 专属网关必须带 x-opencode-session，通用入口不需要
+  bool get needsSessionHeader =>
+      provider == 'opencodego' || resolvedBaseUrl.contains('/inference/go/');
 
   /// 真正要打的地方：目录给了就用目录的，否则按 opencode 网关的路径约定推导
   String get resolvedBaseUrl {
@@ -61,12 +69,12 @@ class LlmConfig {
       defaultModel: 'gpt-4o-mini',
       models: ['gpt-4o-mini', 'gpt-4o'],
     ),
-    // 只需填 Key：地址、模型都预置好
+    // Go 订阅走专属网关（/inference/go/...），和按量付费是两个入口
     'opencodego': LlmPreset(
       label: 'OpenCode Go',
-      baseUrl: 'https://opencode.ai/inference/openai/v1',
+      baseUrl: 'https://opencode.ai/inference/go/openai/v1',
       defaultModel: 'glm-5.3',
-      modelsUrl: 'https://opencode.ai/inference/v1/models',
+      modelsUrl: 'https://opencode.ai/inference/go/v1/models',
       models: [
         'glm-5.3',
         'kimi-k3',
@@ -76,6 +84,14 @@ class LlmConfig {
         'qwen3.8-max',
         'deepseek-v4-pro',
       ],
+    ),
+    // 按量付费（OpenCode Models credits）：与 Go 订阅互不覆盖
+    'opencode': LlmPreset(
+      label: 'OpenCode 按量付费',
+      baseUrl: 'https://opencode.ai/inference/openai/v1',
+      defaultModel: 'glm-5.3',
+      modelsUrl: 'https://opencode.ai/inference/v1/models',
+      models: ['glm-5.3', 'kimi-k3', 'minimax-m3'],
     ),
     'custom': LlmPreset(label: '自定义 / 兼容 OpenAI 协议', baseUrl: ''),
   };
@@ -89,6 +105,7 @@ class LlmConfig {
     String? apiKey,
     LlmApi? modelApi,
     String? apiBaseUrl,
+    String? sessionId,
   }) =>
       LlmConfig(
         provider: provider ?? this.provider,
@@ -97,6 +114,7 @@ class LlmConfig {
         apiKey: apiKey ?? this.apiKey,
         modelApi: modelApi ?? this.modelApi,
         apiBaseUrl: apiBaseUrl ?? this.apiBaseUrl,
+        sessionId: sessionId ?? this.sessionId,
       );
 
   static const empty = LlmConfig(provider: 'deepseek', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', apiKey: '');
@@ -142,6 +160,8 @@ class LlmWire {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ${config.apiKey.trim()}',
         if (config.modelApi == LlmApi.messages) 'anthropic-version': '2023-06-01',
+        // Go 网关缺这个头会直接 400 MissingSessionID
+        if (config.needsSessionHeader) 'x-opencode-session': config.sessionId,
       };
 
   static String body({
