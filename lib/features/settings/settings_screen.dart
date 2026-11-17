@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -21,6 +22,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _key = TextEditingController();
 
   bool _enabled = false;
+  List<String> _models = const [];
+  bool _refreshingModels = false;
   String _provider = 'deepseek';
   bool _initialised = false;
   bool _testing = false;
@@ -33,6 +36,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _provider = state.config.provider;
     _baseUrl.text = state.config.baseUrl;
     _model.text = state.config.model;
+    _models = LlmConfig.presets[state.config.provider]?.models ?? const [];
     _key.text = state.config.apiKey;
   }
 
@@ -97,13 +101,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   children: [
                     for (final entry in LlmConfig.presets.entries)
                       _Choice(
-                        label: entry.value.$1,
+                        label: entry.value.label,
                         selected: _provider == entry.key,
                         onTap: () {
                           setState(() {
                             _provider = entry.key;
-                            _baseUrl.text = entry.value.$2;
-                            _model.text = LlmConfig.defaultModels[entry.key] ?? '';
+                            _baseUrl.text = entry.value.baseUrl;
+                            _model.text = entry.value.defaultModel;
+                            _models = entry.value.models;
                           });
                         },
                       ),
@@ -112,21 +117,62 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(height: 14),
                 TextField(
                   controller: _baseUrl,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Base URL',
-                    hintText: 'https://api.deepseek.com/v1',
+                    hintText: LlmConfig.presets[_provider]?.baseUrl.isNotEmpty == true
+                        ? LlmConfig.presets[_provider]!.baseUrl
+                        : 'https://your-gateway/v1',
                   ),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: _model,
-                  decoration: const InputDecoration(labelText: '模型', hintText: 'deepseek-chat'),
+                  decoration: InputDecoration(
+                    labelText: '模型',
+                    hintText: LlmConfig.presets[_provider]?.defaultModel ?? 'model-id',
+                  ),
                 ),
+                if (_models.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      for (final model in _models)
+                        _Choice(
+                          label: model,
+                          selected: _model.text == model,
+                          onTap: () => setState(() => _model.text = model),
+                        ),
+                      if (_provider == 'opencodego')
+                        TextButton.icon(
+                          onPressed: _refreshingModels ? null : _refreshModels,
+                          icon: _refreshingModels
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.refresh, size: 16),
+                          label: const Text('刷新列表', style: TextStyle(fontSize: 12)),
+                        ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 10),
                 TextField(
                   controller: _key,
                   obscureText: true,
-                  decoration: const InputDecoration(labelText: 'API Key', hintText: 'sk-…'),
+                  decoration: InputDecoration(
+                    labelText: 'API Key',
+                    hintText: _provider == 'opencodego'
+                        ? '粘贴 OpenCode Console 里的 API Key'
+                        : 'sk-…',
+                    helperText: _provider == 'opencodego'
+                        ? 'opencode.ai/console 订阅 Go 后即可获取；地址与模型已预置'
+                        : null,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 Row(
@@ -249,6 +295,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await ref.read(aiConfigProvider.notifier).save(AiConfigState(enabled: _enabled, config: config));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已保存')));
+  }
+
+  /// 拉一次实时模型列表：只保留我们客户端能调的 chat-completions 家族。
+  Future<void> _refreshModels() async {
+    final url = LlmConfig.presets[_provider]?.modelsUrl;
+    if (url == null) return;
+    setState(() => _refreshingModels = true);
+    try {
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 20));
+      if (response.statusCode != 200) {
+        throw LlmException('拉取模型列表失败（HTTP ${response.statusCode}）');
+      }
+      final models = LlmConfig.presets[_provider]!.parseModels(response.body);
+      if (models.isEmpty) throw LlmException('这个服务商没有可用的 chat-completions 模型');
+      if (!mounted) return;
+      setState(() {
+        _models = [for (final model in models) model.id];
+        if (!_models.contains(_model.text)) _model.text = _models.first;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已刷新：${_models.length} 个模型可用')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+    } finally {
+      if (mounted) setState(() => _refreshingModels = false);
+    }
   }
 
   Future<void> _test() async {

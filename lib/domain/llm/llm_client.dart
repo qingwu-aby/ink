@@ -28,17 +28,39 @@ class LlmConfig {
 
   bool get isReady => apiKey.trim().isNotEmpty && baseUrl.trim().isNotEmpty && model.trim().isNotEmpty;
 
-  static const presets = <String, (String, String)>{
-    'deepseek': ('DeepSeek', 'https://api.deepseek.com/v1'),
-    'openai': ('OpenAI', 'https://api.openai.com/v1'),
-    'custom': ('自定义 / 兼容 OpenAI 协议', ''),
+  static const presets = <String, LlmPreset>{
+    'deepseek': LlmPreset(
+      label: 'DeepSeek',
+      baseUrl: 'https://api.deepseek.com/v1',
+      defaultModel: 'deepseek-chat',
+      models: ['deepseek-chat', 'deepseek-reasoner'],
+    ),
+    'openai': LlmPreset(
+      label: 'OpenAI',
+      baseUrl: 'https://api.openai.com/v1',
+      defaultModel: 'gpt-4o-mini',
+      models: ['gpt-4o-mini', 'gpt-4o'],
+    ),
+    // 只需填 Key：地址、模型都预置好
+    'opencodego': LlmPreset(
+      label: 'OpenCode Go',
+      baseUrl: 'https://opencode.ai/inference/openai/v1',
+      defaultModel: 'glm-5.3',
+      modelsUrl: 'https://opencode.ai/inference/v1/models',
+      models: [
+        'glm-5.3',
+        'kimi-k3',
+        'minimax-m3',
+        'deepseek-v4.1-flash',
+        'glm-5.3-flash',
+        'qwen3.8-max',
+        'deepseek-v4-pro',
+      ],
+    ),
+    'custom': LlmPreset(label: '自定义 / 兼容 OpenAI 协议', baseUrl: ''),
   };
 
-  static const defaultModels = <String, String>{
-    'deepseek': 'deepseek-chat',
-    'openai': 'gpt-4o-mini',
-    'custom': '',
-  };
+  static String defaultModelOf(String provider) => presets[provider]?.defaultModel ?? '';
 
   LlmConfig copyWith({String? provider, String? baseUrl, String? model, String? apiKey}) => LlmConfig(
         provider: provider ?? this.provider,
@@ -48,6 +70,53 @@ class LlmConfig {
       );
 
   static const empty = LlmConfig(provider: 'deepseek', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', apiKey: '');
+}
+
+/// 一个服务商的预置：地址、默认模型、可选模型。
+class LlmPreset {
+  const LlmPreset({
+    required this.label,
+    required this.baseUrl,
+    this.defaultModel = '',
+    this.models = const [],
+    this.modelsUrl,
+  });
+
+  final String label;
+  final String baseUrl;
+  final String defaultModel;
+
+  /// 可点的模型清单（离线兜底；OpenCode Go 还能在线刷新）
+  final List<String> models;
+
+  /// 能拉到实时模型列表的地址
+  final String? modelsUrl;
+
+  /// 我们只走 /chat/completions，所以只保留这一族模型。
+  List<LlmModel> parseModels(String body) {
+    final decoded = jsonDecode(body);
+    final data = decoded is Map ? decoded['data'] : null;
+    if (data is! List) return const [];
+    final out = <LlmModel>[];
+    for (final raw in data) {
+      if (raw is! Map) continue;
+      final id = raw['id'];
+      if (id is! String || id.isEmpty) continue;
+      // 只留 chat-completions 家族，别的家族我们的客户端调不通
+      final api = raw['api'];
+      if (api is Map && !api.containsKey('chat-completions')) continue;
+      final name = raw['name'] is String ? raw['name'] as String : id;
+      out.add(LlmModel(id: id, name: name));
+    }
+    out.sort((a, b) => a.id.compareTo(b.id));
+    return out;
+  }
+}
+
+class LlmModel {
+  const LlmModel({required this.id, required this.name});
+  final String id;
+  final String name;
 }
 
 class AiEntityDraft {

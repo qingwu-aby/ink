@@ -21,8 +21,8 @@ class AiSettingsStore {
 
   Future<LlmConfig> load() async {
     final provider = await _db.getSetting(_kProvider) ?? 'deepseek';
-    final baseUrl = await _db.getSetting(_kBaseUrl) ?? LlmConfig.presets[provider]!.$2;
-    final model = await _db.getSetting(_kModel) ?? LlmConfig.defaultModels[provider]!;
+    final baseUrl = await _db.getSetting(_kBaseUrl) ?? LlmConfig.presets[provider]!.baseUrl;
+    final model = await _db.getSetting(_kModel) ?? LlmConfig.presets[provider]!.defaultModel;
     return LlmConfig(
       provider: provider,
       baseUrl: baseUrl,

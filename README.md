@@ -74,6 +74,27 @@ iOS / macOS 是铺满的红底方图，交给系统裁形。`.logo/build_logo.py
 > 篆书用的是 [敬峰中山王篆](https://github.com/SuperMate-Ai/JFZSKSealScript)（OFL-1.1，2700 余字）。
 > 笔画细，只在 1024 母版上做了一道 8px 的等距膨胀，让它在小尺寸站得住，字本身不改。
 
+## AI 助手（可选）
+
+不开启也完全可用。开启后只有两个地方会联网，且都是你点了才发：
+
+- **导入旧稿**：勾「导入后让 AI 抽取人物与关系」，导入后弹出复核面板，逐条确认才入库
+- **编辑器 ⋮ → AI 审校本章**：拿这一章和你建的图谱比对，给出「谁没出场 / 关系没体现」这类提示
+
+配置在 **设置 → AI 助手**，预置了三个服务商：
+
+| 预置 | Base URL | 默认模型 | 说明 |
+|---|---|---|---|
+| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` | 便宜、听话，适合抽取 |
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` | |
+| **OpenCode Go** | `https://opencode.ai/inference/openai/v1` | `glm-5.3` | **只填 Key**，模型可点选，也能点「刷新列表」拉实时清单 |
+
+选 OpenCode Go 后，模型是一排可点的 chip（`glm-5.3` / `kimi-k3` / `minimax-m3` / `deepseek-v4.1-flash` …）；
+「刷新列表」会打 `https://opencode.ai/inference/v1/models`，**只保留 chat-completions 家族**——
+因为我们走的是 `/chat/completions`，GPT/Claude/Gemini 那几个家族的模型调不通，干脆不显示。
+
+API Key 存在系统钥匙串（取不到时退到本地库），除你主动触发的请求外不会外发。
+
 ## 打包发布
 
 ```bash
